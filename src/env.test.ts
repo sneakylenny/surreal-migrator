@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { isValidKebabCase, isValidTableName } from "./config.ts";
 import { connectionEnvKey, connectionEnvSegment } from "./env.ts";
-import { isValidKebabCase } from "./config.ts";
 
 describe("connection env keys", () => {
   test("maps kebab-case to UPPER_SNAKE segment", () => {
@@ -27,5 +27,18 @@ describe("kebab-case validation", () => {
     expect(isValidKebabCase("MyConnection")).toBe(false);
     expect(isValidKebabCase("-bad")).toBe(false);
     expect(isValidKebabCase("bad-")).toBe(false);
+  });
+});
+
+describe("table name validation", () => {
+  test("accepts Surreal-safe identifiers", () => {
+    expect(isValidTableName("migration")).toBe(true);
+    expect(isValidTableName("migration_history")).toBe(true);
+  });
+
+  test("rejects invalid identifiers", () => {
+    expect(isValidTableName("Migration")).toBe(false);
+    expect(isValidTableName("1migration")).toBe(false);
+    expect(isValidTableName("mig-ration")).toBe(false);
   });
 });

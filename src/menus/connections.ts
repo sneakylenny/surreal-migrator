@@ -3,11 +3,12 @@ import {
   connectionExists,
   findConnection,
   isValidKebabCase,
+  isValidTableName,
   saveConfig,
   type Config,
   type Connection,
 } from "../config.ts";
-import { verifyConnection } from "../db.ts";
+import { ensureMigrationTable, verifyConnection } from "../db.ts";
 import { saveConnectionCredentials } from "../env.ts";
 import { theme } from "../theme.ts";
 import { showConnectionMenu } from "./connection.ts";
@@ -119,11 +120,26 @@ async function addConnection(config: Config): Promise<Config> {
     });
     if (p.isCancel(database)) return config;
 
+    const migrationTable = await p.text({
+      message: "Migration table",
+      placeholder: "migration",
+      defaultValue: "migration",
+      initialValue: "migration",
+      validate: (value) => {
+        const trimmed = (value ?? "").trim() || "migration";
+        if (!isValidTableName(trimmed)) {
+          return "Use a lowercase identifier (e.g. migration)";
+        }
+      },
+    });
+    if (p.isCancel(migrationTable)) return config;
+
     const connection: Connection = {
       name: name.trim(),
       endpoint: endpoint.trim() || "ws://localhost:8000",
       namespace: namespace.trim(),
       database: database.trim(),
+      migrationTable: migrationTable.trim() || "migration",
     };
 
     const credentials = {
@@ -137,6 +153,30 @@ async function addConnection(config: Config): Promise<Config> {
 
     if (result.ok) {
       spin.stop(theme.success("Connected successfully"));
+
+      const tableSpin = p.spinner();
+      tableSpin.start("Ensuring migration table…");
+      const tableResult = await ensureMigrationTable(connection, credentials);
+      if (tableResult.ok) {
+        tableSpin.stop(
+          theme.success(`Migration table "${connection.migrationTable}" ready`),
+        );
+      } else {
+        tableSpin.stop(theme.error("Could not create migration table"));
+        p.log.error(theme.error(tableResult.error));
+
+        const next = await p.select({
+          message: "What next?",
+          options: [
+            { value: "retry", label: "Retry" },
+            { value: "continue", label: "Continue anyway" },
+            { value: "cancel", label: "Cancel" },
+          ],
+        });
+
+        if (p.isCancel(next) || next === "cancel") return config;
+        if (next === "retry") continue;
+      }
     } else {
       spin.stop(theme.error("Connection failed"));
       p.log.error(theme.error(result.error));
@@ -152,6 +192,12 @@ async function addConnection(config: Config): Promise<Config> {
 
       if (p.isCancel(next) || next === "cancel") return config;
       if (next === "retry") continue;
+
+      p.log.warn(
+        theme.muted(
+          `Skipped creating migration table "${connection.migrationTable}"`,
+        ),
+      );
     }
 
     await saveConnectionCredentials(connection.name, credentials);

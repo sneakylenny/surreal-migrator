@@ -10,12 +10,14 @@ flowchart TD
   saveConfig --> connectionsMenu
   loadConfig --> connectionsMenu[Connections list + Add connection]
   connectionsMenu -->|select connection| connectionMenu[Pending migrations overview + actions]
-  connectionsMenu -->|add| addConn["Prompt name endpoint user password ns db"]
+  connectionsMenu -->|add| addConn["Prompt name endpoint creds ns db table"]
   addConn --> verify[Connect with surrealdb SDK]
-  verify -->|ok| saveConn["Save connection + .env username/password"]
+  verify -->|ok| ensureTable["DEFINE migration table IF NOT EXISTS"]
   verify -->|fail| retryOrContinue{Retry or continue?}
   retryOrContinue -->|retry| addConn
-  retryOrContinue -->|continue| saveConn
+  retryOrContinue -->|continue| skipTable[Skip table create]
+  ensureTable --> saveConn["Save connection + .env username/password"]
+  skipTable --> saveConn
   saveConn --> hasDefault{defaultConnection set?}
   hasDefault -->|no| askDefault["Ask set as default?"]
   askDefault -->|yes| setDefault[Set defaultConnection]

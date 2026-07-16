@@ -20,6 +20,7 @@ export async function showConnectionMenu(
         `${theme.label("Endpoint")}  ${connection.endpoint}`,
         `${theme.label("Namespace")} ${connection.namespace}`,
         `${theme.label("Database")}  ${connection.database}`,
+        `${theme.label("Table")}     ${connection.migrationTable}`,
         "",
         theme.muted("No pending migrations."),
       ].join("\n"),

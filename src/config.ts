@@ -8,6 +8,7 @@ export type Connection = {
   endpoint: string;
   namespace: string;
   database: string;
+  migrationTable: string;
 };
 
 export type MigrationFormat = "surql" | "ts";
@@ -20,6 +21,7 @@ export type Config = {
 };
 
 const KEBAB_CASE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const TABLE_NAME = /^[a-z][a-z0-9_]*$/;
 
 export function configPath(cwd = process.cwd()): string {
   return path.join(cwd, CONFIG_FILENAME);
@@ -27,6 +29,16 @@ export function configPath(cwd = process.cwd()): string {
 
 export async function configExists(cwd = process.cwd()): Promise<boolean> {
   return Bun.file(configPath(cwd)).exists();
+}
+
+function normalizeConnection(raw: Partial<Connection>): Connection {
+  return {
+    name: raw.name ?? "",
+    endpoint: raw.endpoint ?? "ws://localhost:8000",
+    namespace: raw.namespace ?? "",
+    database: raw.database ?? "",
+    migrationTable: raw.migrationTable ?? "migration",
+  };
 }
 
 export async function loadConfig(cwd = process.cwd()): Promise<Config> {
@@ -39,7 +51,7 @@ export async function loadConfig(cwd = process.cwd()): Promise<Config> {
     migrationsDir: raw.migrationsDir ?? "surreal",
     defaultConnection: raw.defaultConnection ?? null,
     migrationFormat: raw.migrationFormat ?? null,
-    connections: raw.connections ?? [],
+    connections: (raw.connections ?? []).map(normalizeConnection),
   };
 }
 
@@ -58,6 +70,11 @@ export async function ensureMigrationsDir(
 
 export function isValidKebabCase(name: string): boolean {
   return KEBAB_CASE.test(name);
+}
+
+/** Surreal-safe table identifier: lowercase letter, then letters/digits/underscores. */
+export function isValidTableName(name: string): boolean {
+  return TABLE_NAME.test(name);
 }
 
 export function findConnection(config: Config, name: string): Connection | undefined {

@@ -1,15 +1,14 @@
-import { Surreal } from "surrealdb";
+import { Surreal, Table } from "surrealdb";
 import type { Connection } from "./config.ts";
 import type { ConnectionCredentials } from "./env.ts";
 
-export type VerifyResult =
-  | { ok: true }
-  | { ok: false; error: string };
+export type DbResult = { ok: true } | { ok: false; error: string };
 
-export async function verifyConnection(
+async function withConnection(
   connection: Pick<Connection, "endpoint" | "namespace" | "database">,
   credentials: ConnectionCredentials,
-): Promise<VerifyResult> {
+  run: (db: Surreal) => Promise<void>,
+): Promise<DbResult> {
   const db = new Surreal();
   try {
     await db.connect(connection.endpoint, {
@@ -20,6 +19,7 @@ export async function verifyConnection(
         password: credentials.password,
       },
     });
+    await run(db);
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -31,4 +31,34 @@ export async function verifyConnection(
       // ignore close errors after a failed connect
     }
   }
+}
+
+export async function verifyConnection(
+  connection: Pick<Connection, "endpoint" | "namespace" | "database">,
+  credentials: ConnectionCredentials,
+): Promise<DbResult> {
+  return withConnection(connection, credentials, async () => {
+    // connect success is enough
+  });
+}
+
+export async function ensureMigrationTable(
+  connection: Pick<
+    Connection,
+    "endpoint" | "namespace" | "database" | "migrationTable"
+  >,
+  credentials: ConnectionCredentials,
+): Promise<DbResult> {
+  return withConnection(connection, credentials, async (db) => {
+    await db
+      .query(
+        /* surql */ `
+          DEFINE TABLE IF NOT EXISTS $table SCHEMALESS;
+          DEFINE FIELD IF NOT EXISTS batchNumber ON $table TYPE number;
+          DEFINE FIELD IF NOT EXISTS appliedAt ON $table TYPE datetime;
+        `,
+        { table: connection.migrationTable },
+      )
+      .collect();
+  });
 }

@@ -1,15 +1,22 @@
 # surreal-migrator
 
-To install dependencies:
+Interactive SurrealDB migration CLI (menu-first; direct commands coming later).
+
+## Setup
 
 ```bash
 bun install
 ```
 
-To run:
+## Run
 
 ```bash
+bun start
+# or
 bun run src/index.ts
 ```
 
-This project was created using `bun init` in bun v1.3.14. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+On first run you choose a migrations directory (default `surreal/`). Connections store endpoint / namespace / database in `surreal.config.json`; usernames and passwords go in `.env` as `SURREAL_<CONNECTION>_<KEY>`.
+
+See [docs/flow.md](docs/flow.md) for the interactive flow.
+

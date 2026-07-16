@@ -22,6 +22,14 @@ flowchart TD
   askDefault -->|no| connectionsMenu
   setDefault --> connectionsMenu
   hasDefault -->|yes| connectionsMenu
+  connectionMenu -->|create migration| createMig[Create migration]
+  createMig --> hasFormat{migrationFormat set?}
+  hasFormat -->|no| pickFormat["Select surql or ts"]
+  pickFormat --> saveFormat[Persist migrationFormat]
+  hasFormat -->|yes| namePrompt
+  saveFormat --> namePrompt["Prompt kebab-case name"]
+  namePrompt --> writeFiles["Write files under migrationsDir/connection/"]
+  writeFiles --> connectionMenu
   connectionMenu -->|placeholder actions| connectionMenu
   connectionMenu -->|back| connectionsMenu
 ```

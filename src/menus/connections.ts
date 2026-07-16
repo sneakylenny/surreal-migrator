@@ -56,7 +56,8 @@ export async function showConnectionsMenu(config: Config): Promise<void> {
     }
 
     const result = await showConnectionMenu(current, connection);
-    if (result === "quit") {
+    current = result.config;
+    if (result.status === "quit") {
       p.outro(theme.muted("Goodbye."));
       return;
     }

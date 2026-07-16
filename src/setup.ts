@@ -28,6 +28,7 @@ export async function runFirstTimeSetup(): Promise<Config> {
   const config: Config = {
     migrationsDir: dir,
     defaultConnection: null,
+    migrationFormat: null,
     connections: [],
   };
 

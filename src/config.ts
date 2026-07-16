@@ -10,9 +10,12 @@ export type Connection = {
   database: string;
 };
 
+export type MigrationFormat = "surql" | "ts";
+
 export type Config = {
   migrationsDir: string;
   defaultConnection: string | null;
+  migrationFormat: MigrationFormat | null;
   connections: Connection[];
 };
 
@@ -31,7 +34,13 @@ export async function loadConfig(cwd = process.cwd()): Promise<Config> {
   if (!(await file.exists())) {
     throw new Error(`${CONFIG_FILENAME} not found. Run the CLI once to set up.`);
   }
-  return (await file.json()) as Config;
+  const raw = (await file.json()) as Partial<Config>;
+  return {
+    migrationsDir: raw.migrationsDir ?? "surreal",
+    defaultConnection: raw.defaultConnection ?? null,
+    migrationFormat: raw.migrationFormat ?? null,
+    connections: raw.connections ?? [],
+  };
 }
 
 export async function saveConfig(config: Config, cwd = process.cwd()): Promise<void> {

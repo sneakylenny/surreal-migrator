@@ -1,6 +1,11 @@
 import * as p from "@clack/prompts";
 import type { Config, Connection } from "../config.ts";
 import { createMigration } from "../migrations/create.ts";
+import {
+  formatPendingHint,
+  formatPendingOverview,
+  getMigrationStatus,
+} from "../migrations/status.ts";
 import { theme } from "../theme.ts";
 
 export type ConnectionMenuResult = {
@@ -15,6 +20,8 @@ export async function showConnectionMenu(
   let current = config;
 
   while (true) {
+    const migrationStatus = await getMigrationStatus(current, connection);
+
     p.note(
       [
         `${theme.label("Endpoint")}  ${connection.endpoint}`,
@@ -22,7 +29,11 @@ export async function showConnectionMenu(
         `${theme.label("Database")}  ${connection.database}`,
         `${theme.label("Table")}     ${connection.migrationTable}`,
         "",
-        theme.muted("No pending migrations."),
+        ...formatPendingOverview(migrationStatus).map((line) =>
+          line.startsWith("  •") || line.includes("pending migration")
+            ? theme.accent(line)
+            : theme.muted(line),
+        ),
       ].join("\n"),
       theme.title(connection.name),
     );
@@ -31,7 +42,11 @@ export async function showConnectionMenu(
       message: "What would you like to do?",
       options: [
         { value: "create", label: "Create migration" },
-        { value: "run", label: "Run pending migrations", hint: "coming soon" },
+        {
+          value: "run",
+          label: "Run pending migrations",
+          hint: formatPendingHint(migrationStatus),
+        },
         { value: "view", label: "View applied migrations", hint: "coming soon" },
         { value: "back", label: "Back" },
         { value: "quit", label: "Quit" },

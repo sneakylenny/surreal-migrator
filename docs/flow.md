@@ -32,6 +32,11 @@ flowchart TD
   saveFormat --> namePrompt["Prompt kebab-case name"]
   namePrompt --> writeFiles["Write files under migrationsDir/connection/"]
   writeFiles --> connectionMenu
-  connectionMenu -->|placeholder actions| connectionMenu
+  connectionMenu -->|migrate| migrateUp["Apply pending ups as one batch"]
+  connectionMenu -->|rollback batch| rollbackBatch["Down latest batchNumber"]
+  connectionMenu -->|rollback all| rollbackAll["Down all applied reverse order"]
+  migrateUp --> connectionMenu
+  rollbackBatch --> connectionMenu
+  rollbackAll --> connectionMenu
   connectionMenu -->|back| connectionsMenu
 ```

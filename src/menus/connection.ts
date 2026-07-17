@@ -2,6 +2,12 @@ import * as p from "@clack/prompts";
 import type { Config, Connection } from "../config.ts";
 import { createMigration } from "../migrations/create.ts";
 import {
+  migrateUp,
+  rollbackAll,
+  rollbackBatch,
+  type RunResult,
+} from "../migrations/run.ts";
+import {
   formatPendingHint,
   formatPendingOverview,
   getMigrationStatus,
@@ -12,6 +18,35 @@ export type ConnectionMenuResult = {
   status: "back" | "quit";
   config: Config;
 };
+
+function reportRun(
+  label: string,
+  result: RunResult,
+  emptyMessage: string,
+): void {
+  if (!result.ok) {
+    p.log.error(theme.error(result.error));
+    if (result.processed.length > 0) {
+      p.log.warn(
+        theme.muted(
+          `Stopped after: ${result.processed.join(", ")}`,
+        ),
+      );
+    }
+    return;
+  }
+
+  if (result.processed.length === 0) {
+    p.log.info(theme.muted(emptyMessage));
+    return;
+  }
+
+  p.log.success(
+    theme.success(
+      `${label} (${result.processed.length}): ${result.processed.join(", ")}`,
+    ),
+  );
+}
 
 export async function showConnectionMenu(
   config: Config,
@@ -43,11 +78,20 @@ export async function showConnectionMenu(
       options: [
         { value: "create", label: "Create migration" },
         {
-          value: "run",
-          label: "Run pending migrations",
+          value: "migrate",
+          label: "Migrate",
           hint: formatPendingHint(migrationStatus),
         },
-        { value: "view", label: "View applied migrations", hint: "coming soon" },
+        {
+          value: "rollback-batch",
+          label: "Rollback batch",
+          hint: "undo latest batch",
+        },
+        {
+          value: "rollback-all",
+          label: "Rollback all",
+          hint: "undo every applied migration",
+        },
         { value: "back", label: "Back" },
         { value: "quit", label: "Quit" },
       ],
@@ -61,10 +105,66 @@ export async function showConnectionMenu(
       case "create":
         current = await createMigration(current, connection);
         break;
-      case "run":
-      case "view":
-        p.log.warn(theme.muted("Not implemented yet — placeholder for later."));
+      case "migrate": {
+        const spin = p.spinner();
+        spin.start("Migrating…");
+        const result = await migrateUp(current, connection);
+        if (result.ok) {
+          spin.stop(
+            result.processed.length
+              ? theme.success("Migrate complete")
+              : theme.muted("Nothing to migrate"),
+          );
+        } else {
+          spin.stop(theme.error("Migrate failed"));
+        }
+        reportRun("Applied", result, "No pending migrations.");
+        await Bun.sleep(1200);
         break;
+      }
+      case "rollback-batch": {
+        const spin = p.spinner();
+        spin.start("Rolling back latest batch…");
+        const result = await rollbackBatch(current, connection);
+        if (result.ok) {
+          spin.stop(
+            result.processed.length
+              ? theme.success("Rollback batch complete")
+              : theme.muted("Nothing to roll back"),
+          );
+        } else {
+          spin.stop(theme.error("Rollback batch failed"));
+        }
+        reportRun("Reverted", result, "No applied migrations to roll back.");
+        await Bun.sleep(1200);
+        break;
+      }
+      case "rollback-all": {
+        const confirmed = await p.confirm({
+          message: "Rollback ALL applied migrations?",
+          initialValue: false,
+        });
+        if (p.isCancel(confirmed) || !confirmed) {
+          p.log.message(theme.muted("Cancelled."));
+          break;
+        }
+
+        const spin = p.spinner();
+        spin.start("Rolling back all migrations…");
+        const result = await rollbackAll(current, connection);
+        if (result.ok) {
+          spin.stop(
+            result.processed.length
+              ? theme.success("Rollback all complete")
+              : theme.muted("Nothing to roll back"),
+          );
+        } else {
+          spin.stop(theme.error("Rollback all failed"));
+        }
+        reportRun("Reverted", result, "No applied migrations to roll back.");
+        await Bun.sleep(1200);
+        break;
+      }
       case "back":
         return { status: "back", config: current };
       case "quit":

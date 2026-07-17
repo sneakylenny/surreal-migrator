@@ -7,7 +7,8 @@
   },
   "scripts": {
     "start": "bun run src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "mkdir -p dist && bun build --compile --define __SM_TS_MIGRATIONS__=false ./src/index.ts --outfile dist/surreal-migrator"
   },
   "devDependencies": {
     "@surrealdb/node": "^3.0.3",

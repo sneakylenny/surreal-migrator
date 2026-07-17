@@ -2,21 +2,29 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import * as p from "@clack/prompts";
 import {
-  findConnection,
   isValidKebabCase,
   resolveMigrationFormat,
-  saveConfig,
-  withConnectionMigrationFormat,
   type Config,
   type Connection,
   type MigrationFormat,
 } from "../config.ts";
+import { assertFormatSupported } from "../features.ts";
 import { theme } from "../theme.ts";
+import templateDownSurql from "./templates/migration.down.surql" with {
+  type: "text",
+};
+import templateTs from "./templates/migration.ts.txt" with { type: "text" };
+import templateUpSurql from "./templates/migration.up.surql" with {
+  type: "text",
+};
 
-const TEMPLATES_DIR = path.join(import.meta.dir, "templates");
-
-async function readTemplate(filename: string): Promise<string> {
-  return Bun.file(path.join(TEMPLATES_DIR, filename)).text();
+function templateFor(
+  format: MigrationFormat,
+): { up: string; down?: string } {
+  if (format === "surql") {
+    return { up: templateUpSurql, down: templateDownSurql };
+  }
+  return { up: templateTs };
 }
 
 /** Local time as `YYYYMMDDHHmmss`. */
@@ -61,39 +69,11 @@ export async function createMigration(
   connection: Connection,
   cwd = process.cwd(),
 ): Promise<Config> {
-  let next = config;
-  let current = connection;
-
-  if (!resolveMigrationFormat(next, current)) {
-    const format = await p.select({
-      message: "Choose a migration format (saved for this connection)",
-      options: [
-        {
-          value: "surql" as const,
-          label: "Split SurQL",
-          hint: ".up.surql and .down.surql",
-        },
-        {
-          value: "ts" as const,
-          label: "TypeScript",
-          hint: "single file with up/down functions",
-        },
-      ],
-    });
-
-    if (p.isCancel(format)) {
-      p.log.message(theme.muted("Cancelled."));
-      return config;
-    }
-
-    next = withConnectionMigrationFormat(next, current.name, format);
-    current = findConnection(next, current.name)!;
-    await saveConfig(next, cwd);
-    p.log.success(
-      theme.success(
-        `Using ${format === "surql" ? "split SurQL" : "TypeScript"} migrations for "${current.name}"`,
-      ),
-    );
+  const format = resolveMigrationFormat(config, connection);
+  const unsupported = assertFormatSupported(format);
+  if (unsupported) {
+    p.log.error(theme.error(unsupported));
+    return config;
   }
 
   const name = await p.text({
@@ -110,21 +90,25 @@ export async function createMigration(
 
   if (p.isCancel(name)) {
     p.log.message(theme.muted("Cancelled."));
-    return next;
+    return config;
   }
 
-  const format = resolveMigrationFormat(next, current)!;
   const baseName = migrationBaseName(migrationTimestamp(), name.trim());
-  const dir = connectionMigrationsDir(next.migrationsDir, current.name, cwd);
+  const dir = connectionMigrationsDir(
+    config.migrationsDir,
+    connection.name,
+    cwd,
+  );
   await mkdir(dir, { recursive: true });
 
   const files = migrationPaths(format, dir, baseName);
+  const templates = templateFor(format);
 
   if (format === "surql") {
-    await Bun.write(files[0]!, await readTemplate("migration.up.surql"));
-    await Bun.write(files[1]!, await readTemplate("migration.down.surql"));
+    await Bun.write(files[0]!, templates.up);
+    await Bun.write(files[1]!, templates.down!);
   } else {
-    await Bun.write(files[0]!, await readTemplate("migration.ts"));
+    await Bun.write(files[0]!, templates.up);
   }
 
   const relative = files.map((f) => path.relative(cwd, f));
@@ -135,5 +119,5 @@ export async function createMigration(
 
   await Bun.sleep(1500);
 
-  return next;
+  return config;
 }

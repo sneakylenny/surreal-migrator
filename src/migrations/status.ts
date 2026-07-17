@@ -6,6 +6,7 @@ import {
   getConnectionCredentials,
   type ConnectionCredentials,
 } from "../env.ts";
+import { assertFormatSupported } from "../features.ts";
 import { connectionMigrationsDir } from "./create.ts";
 
 export type MigrationStatus = {
@@ -94,8 +95,15 @@ export async function getMigrationStatus(
   cwd = process.cwd(),
 ): Promise<MigrationStatus> {
   const format = resolveMigrationFormat(config, connection);
-  if (!format) {
-    return { local: [], applied: [], pending: [], latestBatchCount: 0 };
+  const unsupported = assertFormatSupported(format);
+  if (unsupported) {
+    return {
+      local: [],
+      applied: [],
+      pending: [],
+      latestBatchCount: 0,
+      error: unsupported,
+    };
   }
 
   const local = await listLocalMigrationIds(

@@ -6,8 +6,10 @@ An interactive CLI for managing [SurrealDB](https://surrealdb.com) schema and da
 
 ## Requirements
 
-- [Bun](https://bun.sh)
 - A reachable SurrealDB instance
+- Either:
+  - [Bun](https://bun.sh) (development / TypeScript migrations), or
+  - A platform binary (SurQL migrations only — no Bun install needed)
 
 ## Getting started
 
@@ -24,7 +26,8 @@ On first run you choose a migrations directory (default `surreal/`). That create
 
 Manage multiple SurrealDB targets from one project:
 
-- Add a connection with endpoint, credentials, namespace, database, migration table, and migration format
+- Add a connection with endpoint, credentials, namespace, database, and migration table
+- Optionally choose TypeScript migrations when running via Bun
 - Verify the connection and create the migration tracking table
 - Pick a default connection (shown first in the list)
 - Switch the default later from the connection menu
@@ -33,12 +36,10 @@ Each connection has its own migration folder under the migrations directory (for
 
 ### Migration formats
 
-Per connection you can choose:
+- **Split SurQL** (default) — `.up.surql` and `.down.surql` files. Used when `migrationFormat` is omitted.
+- **TypeScript** — a single `.ts` file exporting `up` and `down` functions. Set `"migrationFormat": "ts"` on a connection (Bun / source only).
 
-- **Split SurQL** — `.up.surql` and `.down.surql` files
-- **TypeScript** — a single `.ts` file exporting `up` and `down` functions
-
-That makes it easy to keep separate SurQL and TypeScript connections for testing or different environments.
+Released binaries are **SurQL-only**. TypeScript migrations require running via Bun from source.
 
 ### Create migrations
 
@@ -69,16 +70,32 @@ Typical files after setup:
 ```
 surreal.config.json   # connections, default connection, migrations dir
 .env                  # usernames and passwords (not committed)
-<database folder>/
+surreal/
   <connection>/
-    *.up.surql / *.down.surql   # or
-    *.ts
+    *.up.surql / *.down.surql   # or *.ts when using TypeScript
 ```
 
 ## Configuration
 
 `surreal.config.json` holds non-secret settings. Connection credentials live only in `.env`.
 
-You can set a project-level `migrationFormat` as a fallback; each connection may override it with its own `migrationFormat`.
+Omitting `migrationFormat` means SurQL. Set `"migrationFormat": "ts"` on a connection only when using TypeScript migrations. A project-level `migrationFormat` can act as a fallback.
 
 For a diagram of the interactive flow, see [docs/flow.md](docs/flow.md).
+
+## Building a binary
+
+Compile a SurQL-only standalone executable for your host platform:
+
+```bash
+bun run build
+# → dist/surreal-migrator
+```
+
+Cross-compile with Bun’s `--target` flag, for example:
+
+```bash
+bun build --compile --define __SM_TS_MIGRATIONS__=false --target=bun-linux-x64 ./src/index.ts --outfile dist/surreal-migrator-linux-x64
+bun build --compile --define __SM_TS_MIGRATIONS__=false --target=bun-windows-x64 ./src/index.ts --outfile dist/surreal-migrator-windows-x64.exe
+bun build --compile --define __SM_TS_MIGRATIONS__=false --target=bun-darwin-arm64 ./src/index.ts --outfile dist/surreal-migrator-darwin-arm64
+```

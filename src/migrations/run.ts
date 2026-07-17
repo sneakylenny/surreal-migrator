@@ -14,6 +14,7 @@ import {
   getConnectionCredentials,
   type ConnectionCredentials,
 } from "../env.ts";
+import { assertFormatSupported } from "../features.ts";
 import { connectionMigrationsDir } from "./create.ts";
 import { listLocalMigrationIds } from "./status.ts";
 
@@ -270,12 +271,9 @@ async function runWithConnection(
   run: (db: Surreal, options: MigrationRunOptions) => Promise<string[]>,
 ): Promise<RunResult> {
   const format = resolveMigrationFormat(config, connection);
-  if (!format) {
-    return {
-      ok: false,
-      error: "Migration format is not configured for this connection",
-      processed: [],
-    };
+  const unsupported = assertFormatSupported(format);
+  if (unsupported) {
+    return { ok: false, error: unsupported, processed: [] };
   }
 
   const credentials = requireCredentials(connection.name);

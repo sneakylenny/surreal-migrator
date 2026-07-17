@@ -8,10 +8,14 @@ import {
   saveConfig,
   type Config,
   type Connection,
-  type MigrationFormat,
 } from "../config.ts";
 import { ensureMigrationTable, verifyConnection } from "../db.ts";
 import { saveConnectionCredentials } from "../env.ts";
+import {
+  formatToPersist,
+  migrationFormatOptions,
+  tsMigrationsEnabled,
+} from "../features.ts";
 import { theme } from "../theme.ts";
 import { showConnectionMenu } from "./connection.ts";
 
@@ -136,22 +140,15 @@ async function addConnection(config: Config): Promise<Config> {
     });
     if (p.isCancel(migrationTable)) return config;
 
-    const migrationFormat = await p.select({
-      message: "Migration format",
-      options: [
-        {
-          value: "surql" as const,
-          label: "Split SurQL",
-          hint: ".up.surql and .down.surql",
-        },
-        {
-          value: "ts" as const,
-          label: "TypeScript",
-          hint: "single file with up/down functions",
-        },
-      ],
-    });
-    if (p.isCancel(migrationFormat)) return config;
+    let migrationFormat: Connection["migrationFormat"] = null;
+    if (tsMigrationsEnabled()) {
+      const selected = await p.select({
+        message: "Migration format",
+        options: migrationFormatOptions(true),
+      });
+      if (p.isCancel(selected)) return config;
+      migrationFormat = formatToPersist(selected);
+    }
 
     const connection: Connection = {
       name: name.trim(),
@@ -159,7 +156,7 @@ async function addConnection(config: Config): Promise<Config> {
       namespace: namespace.trim(),
       database: database.trim(),
       migrationTable: migrationTable.trim() || "migration",
-      migrationFormat: migrationFormat as MigrationFormat,
+      migrationFormat,
     };
 
     const credentials = {

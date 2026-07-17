@@ -99,18 +99,18 @@ export function connectionsForMenu(config: Config): Connection[] {
   return [...preferred, ...rest];
 }
 
-/** Connection override, else project default. */
+/** Connection override, else project default, else SurQL. */
 export function resolveMigrationFormat(
   config: Config,
   connection: Connection,
-): MigrationFormat | null {
-  return connection.migrationFormat ?? config.migrationFormat;
+): MigrationFormat {
+  return connection.migrationFormat ?? config.migrationFormat ?? "surql";
 }
 
 export function withConnectionMigrationFormat(
   config: Config,
   connectionName: string,
-  format: MigrationFormat,
+  format: MigrationFormat | null,
 ): Config {
   return {
     ...config,

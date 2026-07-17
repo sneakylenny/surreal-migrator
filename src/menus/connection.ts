@@ -48,6 +48,18 @@ function reportRun(
   );
 }
 
+async function confirmAction(message: string): Promise<boolean> {
+  const confirmed = await p.confirm({
+    message,
+    initialValue: false,
+  });
+  if (p.isCancel(confirmed) || !confirmed) {
+    p.log.message(theme.muted("Cancelled."));
+    return false;
+  }
+  return true;
+}
+
 export async function showConnectionMenu(
   config: Config,
   connection: Connection,
@@ -106,6 +118,8 @@ export async function showConnectionMenu(
         current = await createMigration(current, connection);
         break;
       case "migrate": {
+        if (!(await confirmAction("Run pending migrations?"))) break;
+
         const spin = p.spinner();
         spin.start("Migrating…");
         const result = await migrateUp(current, connection);
@@ -123,6 +137,8 @@ export async function showConnectionMenu(
         break;
       }
       case "rollback-batch": {
+        if (!(await confirmAction("Rollback the latest migration batch?"))) break;
+
         const spin = p.spinner();
         spin.start("Rolling back latest batch…");
         const result = await rollbackBatch(current, connection);
@@ -140,14 +156,7 @@ export async function showConnectionMenu(
         break;
       }
       case "rollback-all": {
-        const confirmed = await p.confirm({
-          message: "Rollback ALL applied migrations?",
-          initialValue: false,
-        });
-        if (p.isCancel(confirmed) || !confirmed) {
-          p.log.message(theme.muted("Cancelled."));
-          break;
-        }
+        if (!(await confirmAction("Rollback ALL applied migrations?"))) break;
 
         const spin = p.spinner();
         spin.start("Rolling back all migrations…");

@@ -13,6 +13,15 @@ An interactive CLI for managing [SurrealDB](https://surrealdb.com) schema and da
 
 ## Getting started
 
+With Bun:
+
+```bash
+bun add -g surreal-migrator
+surreal-migrator
+```
+
+Or from this repo:
+
 ```bash
 bun install
 bun start
@@ -83,19 +92,6 @@ Omitting `migrationFormat` means SurQL. Set `"migrationFormat": "ts"` on a conne
 
 For a diagram of the interactive flow, see [docs/flow.md](docs/flow.md).
 
-## Building a binary
+Compiled binaries for macOS, Linux, and Windows are also available from GitHub Releases (SurQL-only). The npm package requires Bun and includes TypeScript migration support.
 
-Compile a SurQL-only standalone executable for your host platform:
-
-```bash
-bun run build
-# → dist/surreal-migrator
-```
-
-Cross-compile with Bun’s `--target` flag, for example:
-
-```bash
-bun build --compile --define __SM_TS_MIGRATIONS__=false --target=bun-linux-x64 ./src/index.ts --outfile dist/surreal-migrator-linux-x64
-bun build --compile --define __SM_TS_MIGRATIONS__=false --target=bun-windows-x64 ./src/index.ts --outfile dist/surreal-migrator-windows-x64.exe
-bun build --compile --define __SM_TS_MIGRATIONS__=false --target=bun-darwin-arm64 ./src/index.ts --outfile dist/surreal-migrator-darwin-arm64
-```
+Releases are driven by [Changesets](https://github.com/changesets/changesets): add a changeset in your PR (`bun run changeset`), merge the Version Packages PR that CI opens, and npm + binaries publish automatically.

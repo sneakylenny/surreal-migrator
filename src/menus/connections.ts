@@ -106,7 +106,7 @@ async function addConnection(config: Config): Promise<Config> {
 
     const namespace = await p.text({
       message: "Namespace",
-      placeholder: "app",
+      placeholder: "main",
       validate: (value) =>
         !(value ?? "").trim() ? "Namespace is required" : undefined,
     });

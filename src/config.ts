@@ -3,19 +3,22 @@ import path from "node:path";
 
 export const CONFIG_FILENAME = "surreal.config.json";
 
+export type MigrationFormat = "surql" | "ts";
+
 export type Connection = {
   name: string;
   endpoint: string;
   namespace: string;
   database: string;
   migrationTable: string;
+  /** When set, overrides the project-level migrationFormat for this connection. */
+  migrationFormat: MigrationFormat | null;
 };
-
-export type MigrationFormat = "surql" | "ts";
 
 export type Config = {
   migrationsDir: string;
   defaultConnection: string | null;
+  /** Default format for connections that do not set their own. */
   migrationFormat: MigrationFormat | null;
   connections: Connection[];
 };
@@ -38,6 +41,7 @@ function normalizeConnection(raw: Partial<Connection>): Connection {
     namespace: raw.namespace ?? "",
     database: raw.database ?? "",
     migrationTable: raw.migrationTable ?? "migration",
+    migrationFormat: raw.migrationFormat ?? null,
   };
 }
 
@@ -83,4 +87,25 @@ export function findConnection(config: Config, name: string): Connection | undef
 
 export function connectionExists(config: Config, name: string): boolean {
   return config.connections.some((c) => c.name === name);
+}
+
+/** Connection override, else project default. */
+export function resolveMigrationFormat(
+  config: Config,
+  connection: Connection,
+): MigrationFormat | null {
+  return connection.migrationFormat ?? config.migrationFormat;
+}
+
+export function withConnectionMigrationFormat(
+  config: Config,
+  connectionName: string,
+  format: MigrationFormat,
+): Config {
+  return {
+    ...config,
+    connections: config.connections.map((c) =>
+      c.name === connectionName ? { ...c, migrationFormat: format } : c,
+    ),
+  };
 }

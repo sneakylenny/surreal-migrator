@@ -7,6 +7,7 @@ import {
   saveConfig,
   type Config,
   type Connection,
+  type MigrationFormat,
 } from "../config.ts";
 import { ensureMigrationTable, verifyConnection } from "../db.ts";
 import { saveConnectionCredentials } from "../env.ts";
@@ -134,12 +135,30 @@ async function addConnection(config: Config): Promise<Config> {
     });
     if (p.isCancel(migrationTable)) return config;
 
+    const migrationFormat = await p.select({
+      message: "Migration format",
+      options: [
+        {
+          value: "surql" as const,
+          label: "Split SurQL",
+          hint: ".up.surql and .down.surql",
+        },
+        {
+          value: "ts" as const,
+          label: "TypeScript",
+          hint: "single file with up/down functions",
+        },
+      ],
+    });
+    if (p.isCancel(migrationFormat)) return config;
+
     const connection: Connection = {
       name: name.trim(),
       endpoint: endpoint.trim() || "ws://localhost:8000",
       namespace: namespace.trim(),
       database: database.trim(),
       migrationTable: migrationTable.trim() || "migration",
+      migrationFormat: migrationFormat as MigrationFormat,
     };
 
     const credentials = {

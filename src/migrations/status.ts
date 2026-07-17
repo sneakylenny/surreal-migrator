@@ -1,5 +1,6 @@
 import { readdir } from "node:fs/promises";
 import type { Config, Connection, MigrationFormat } from "../config.ts";
+import { resolveMigrationFormat } from "../config.ts";
 import { fetchAppliedMigrations } from "../db.ts";
 import {
   getConnectionCredentials,
@@ -92,14 +93,15 @@ export async function getMigrationStatus(
   connection: Connection,
   cwd = process.cwd(),
 ): Promise<MigrationStatus> {
-  if (!config.migrationFormat) {
+  const format = resolveMigrationFormat(config, connection);
+  if (!format) {
     return { local: [], applied: [], pending: [], latestBatchCount: 0 };
   }
 
   const local = await listLocalMigrationIds(
     config.migrationsDir,
     connection.name,
-    config.migrationFormat,
+    format,
     cwd,
   );
 

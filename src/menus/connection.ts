@@ -1,5 +1,10 @@
 import * as p from "@clack/prompts";
-import type { Config, Connection } from "../config.ts";
+import {
+  findConnection,
+  resolveMigrationFormat,
+  type Config,
+  type Connection,
+} from "../config.ts";
 import { createMigration } from "../migrations/create.ts";
 import {
   migrateUp,
@@ -140,16 +145,24 @@ export async function showConnectionMenu(
   connection: Connection,
 ): Promise<ConnectionMenuResult> {
   let current = config;
+  let currentConnection = connection;
 
   while (true) {
-    const migrationStatus = await getMigrationStatus(current, connection);
+    currentConnection =
+      findConnection(current, currentConnection.name) ?? currentConnection;
+    const migrationStatus = await getMigrationStatus(
+      current,
+      currentConnection,
+    );
+    const format = resolveMigrationFormat(current, currentConnection);
 
     p.note(
       [
-        `${theme.label("Endpoint")}  ${connection.endpoint}`,
-        `${theme.label("Namespace")} ${connection.namespace}`,
-        `${theme.label("Database")}  ${connection.database}`,
-        `${theme.label("Table")}     ${connection.migrationTable}`,
+        `${theme.label("Endpoint")}  ${currentConnection.endpoint}`,
+        `${theme.label("Namespace")} ${currentConnection.namespace}`,
+        `${theme.label("Database")}  ${currentConnection.database}`,
+        `${theme.label("Table")}     ${currentConnection.migrationTable}`,
+        `${theme.label("Format")}    ${format ?? "not set"}`,
         "",
         ...formatPendingOverview(migrationStatus).map((line) =>
           line.startsWith("  •") || line.includes("pending migration")
@@ -157,7 +170,7 @@ export async function showConnectionMenu(
             : theme.muted(line),
         ),
       ].join("\n"),
-      theme.title(connection.name),
+      theme.title(currentConnection.name),
     );
 
     const action = await p.select({
@@ -190,14 +203,14 @@ export async function showConnectionMenu(
 
     switch (action) {
       case "create":
-        current = await createMigration(current, connection);
+        current = await createMigration(current, currentConnection);
         break;
       case "migrate": {
         if (!(await confirmAction("Run pending migrations?"))) break;
 
         const spin = p.spinner();
         spin.start("Migrating…");
-        const result = await migrateUp(current, connection);
+        const result = await migrateUp(current, currentConnection);
         if (result.ok) {
           spin.stop(
             result.processed.length
@@ -212,10 +225,10 @@ export async function showConnectionMenu(
         break;
       }
       case "rollback":
-        await showRollbackMenu(current, connection, migrationStatus);
+        await showRollbackMenu(current, currentConnection, migrationStatus);
         break;
       case "manager":
-        await showMigrationManager(current, connection);
+        await showMigrationManager(current, currentConnection);
         break;
       case "back":
         return { status: "back", config: current };

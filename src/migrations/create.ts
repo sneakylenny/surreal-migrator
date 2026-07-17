@@ -2,8 +2,11 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import * as p from "@clack/prompts";
 import {
+  findConnection,
   isValidKebabCase,
+  resolveMigrationFormat,
   saveConfig,
+  withConnectionMigrationFormat,
   type Config,
   type Connection,
   type MigrationFormat,
@@ -59,10 +62,11 @@ export async function createMigration(
   cwd = process.cwd(),
 ): Promise<Config> {
   let next = config;
+  let current = connection;
 
-  if (!next.migrationFormat) {
+  if (!resolveMigrationFormat(next, current)) {
     const format = await p.select({
-      message: "Choose a migration format (saved for this project)",
+      message: "Choose a migration format (saved for this connection)",
       options: [
         {
           value: "surql" as const,
@@ -82,11 +86,12 @@ export async function createMigration(
       return config;
     }
 
-    next = { ...next, migrationFormat: format };
+    next = withConnectionMigrationFormat(next, current.name, format);
+    current = findConnection(next, current.name)!;
     await saveConfig(next, cwd);
     p.log.success(
       theme.success(
-        `Using ${format === "surql" ? "split SurQL" : "TypeScript"} migrations`,
+        `Using ${format === "surql" ? "split SurQL" : "TypeScript"} migrations for "${current.name}"`,
       ),
     );
   }
@@ -108,9 +113,9 @@ export async function createMigration(
     return next;
   }
 
-  const format = next.migrationFormat!;
+  const format = resolveMigrationFormat(next, current)!;
   const baseName = migrationBaseName(migrationTimestamp(), name.trim());
-  const dir = connectionMigrationsDir(next.migrationsDir, connection.name, cwd);
+  const dir = connectionMigrationsDir(next.migrationsDir, current.name, cwd);
   await mkdir(dir, { recursive: true });
 
   const files = migrationPaths(format, dir, baseName);

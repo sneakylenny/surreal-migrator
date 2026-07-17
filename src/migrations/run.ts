@@ -2,6 +2,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Surreal } from "surrealdb";
 import type { Config, Connection, MigrationFormat } from "../config.ts";
+import { resolveMigrationFormat } from "../config.ts";
 import {
   fetchAppliedMigrationsOn,
   markMigrationApplied,
@@ -268,10 +269,11 @@ async function runWithConnection(
   cwd: string,
   run: (db: Surreal, options: MigrationRunOptions) => Promise<string[]>,
 ): Promise<RunResult> {
-  if (!config.migrationFormat) {
+  const format = resolveMigrationFormat(config, connection);
+  if (!format) {
     return {
       ok: false,
-      error: "Migration format is not configured",
+      error: "Migration format is not configured for this connection",
       processed: [],
     };
   }
@@ -285,7 +287,7 @@ async function runWithConnection(
     migrationsDir: config.migrationsDir,
     connectionName: connection.name,
     migrationTable: connection.migrationTable,
-    format: config.migrationFormat,
+    format,
     cwd,
   };
 

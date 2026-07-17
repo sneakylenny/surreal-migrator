@@ -122,17 +122,27 @@ export function sortForRollback(
   return b.id.localeCompare(a.id);
 }
 
+function resolveRunPaths(options: MigrationRunOptions): {
+  cwd: string;
+  dir: string;
+} {
+  const cwd = options.cwd ?? process.cwd();
+  return {
+    cwd,
+    dir: connectionMigrationsDir(
+      options.migrationsDir,
+      options.connectionName,
+      cwd,
+    ),
+  };
+}
+
 /** Apply all pending migrations on an open DB session (same batch). */
 export async function applyPendingMigrations(
   db: Surreal,
   options: MigrationRunOptions,
 ): Promise<string[]> {
-  const cwd = options.cwd ?? process.cwd();
-  const dir = connectionMigrationsDir(
-    options.migrationsDir,
-    options.connectionName,
-    cwd,
-  );
+  const { cwd, dir } = resolveRunPaths(options);
   const local = await listLocalMigrationIds(
     options.migrationsDir,
     options.connectionName,
@@ -156,17 +166,28 @@ export async function applyPendingMigrations(
   return processed;
 }
 
+/** Apply a single migration by id (allows out-of-order / holes). */
+export async function applyMigration(
+  db: Surreal,
+  options: MigrationRunOptions,
+  id: string,
+): Promise<string[]> {
+  const { dir } = resolveRunPaths(options);
+  const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
+  if (applied.some((m) => m.id === id)) return [];
+
+  const batchNumber = nextBatchNumber(applied);
+  await runUp(db, options.format, dir, id);
+  await markMigrationApplied(db, options.migrationTable, id, batchNumber);
+  return [id];
+}
+
 /** Roll back the latest batch on an open DB session. */
 export async function revertLatestBatch(
   db: Surreal,
   options: MigrationRunOptions,
 ): Promise<string[]> {
-  const cwd = options.cwd ?? process.cwd();
-  const dir = connectionMigrationsDir(
-    options.migrationsDir,
-    options.connectionName,
-    cwd,
-  );
+  const { dir } = resolveRunPaths(options);
   const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
   if (applied.length === 0) return [];
 
@@ -189,12 +210,7 @@ export async function revertAllApplied(
   db: Surreal,
   options: MigrationRunOptions,
 ): Promise<string[]> {
-  const cwd = options.cwd ?? process.cwd();
-  const dir = connectionMigrationsDir(
-    options.migrationsDir,
-    options.connectionName,
-    cwd,
-  );
+  const { dir } = resolveRunPaths(options);
   const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
   const ordered = [...applied].sort(sortForRollback);
 
@@ -207,10 +223,50 @@ export async function revertAllApplied(
   return processed;
 }
 
-export async function migrateUp(
+/** Roll back a single migration by id (allows holes). */
+export async function revertMigration(
+  db: Surreal,
+  options: MigrationRunOptions,
+  id: string,
+): Promise<string[]> {
+  const { dir } = resolveRunPaths(options);
+  const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
+  if (!applied.some((m) => m.id === id)) return [];
+
+  await runDown(db, options.format, dir, id);
+  await markMigrationReverted(db, options.migrationTable, id);
+  return [id];
+}
+
+/**
+ * Roll back every applied migration with id > selected (lexical).
+ * The selected migration stays applied.
+ */
+export async function revertMigrationsAfter(
+  db: Surreal,
+  options: MigrationRunOptions,
+  id: string,
+): Promise<string[]> {
+  const { dir } = resolveRunPaths(options);
+  const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
+  const after = applied
+    .filter((m) => m.id.localeCompare(id) > 0)
+    .sort(sortForRollback);
+
+  const processed: string[] = [];
+  for (const migration of after) {
+    await runDown(db, options.format, dir, migration.id);
+    await markMigrationReverted(db, options.migrationTable, migration.id);
+    processed.push(migration.id);
+  }
+  return processed;
+}
+
+async function runWithConnection(
   config: Config,
   connection: Connection,
-  cwd = process.cwd(),
+  cwd: string,
+  run: (db: Surreal, options: MigrationRunOptions) => Promise<string[]>,
 ): Promise<RunResult> {
   if (!config.migrationFormat) {
     return {
@@ -225,22 +281,42 @@ export async function migrateUp(
     return { ok: false, error: credentials.error, processed: [] };
   }
 
+  const options: MigrationRunOptions = {
+    migrationsDir: config.migrationsDir,
+    connectionName: connection.name,
+    migrationTable: connection.migrationTable,
+    format: config.migrationFormat,
+    cwd,
+  };
+
   const processed: string[] = [];
   const result = await withConnection(connection, credentials, async (db) => {
-    const ids = await applyPendingMigrations(db, {
-      migrationsDir: config.migrationsDir,
-      connectionName: connection.name,
-      migrationTable: connection.migrationTable,
-      format: config.migrationFormat!,
-      cwd,
-    });
-    processed.push(...ids);
+    processed.push(...(await run(db, options)));
   });
 
   if (!result.ok) {
     return { ok: false, error: result.error, processed };
   }
   return { ok: true, processed };
+}
+
+export async function migrateUp(
+  config: Config,
+  connection: Connection,
+  cwd = process.cwd(),
+): Promise<RunResult> {
+  return runWithConnection(config, connection, cwd, applyPendingMigrations);
+}
+
+export async function migrateOne(
+  config: Config,
+  connection: Connection,
+  id: string,
+  cwd = process.cwd(),
+): Promise<RunResult> {
+  return runWithConnection(config, connection, cwd, (db, options) =>
+    applyMigration(db, options, id),
+  );
 }
 
 export async function rollbackBatch(
@@ -248,35 +324,7 @@ export async function rollbackBatch(
   connection: Connection,
   cwd = process.cwd(),
 ): Promise<RunResult> {
-  if (!config.migrationFormat) {
-    return {
-      ok: false,
-      error: "Migration format is not configured",
-      processed: [],
-    };
-  }
-
-  const credentials = requireCredentials(connection.name);
-  if ("error" in credentials) {
-    return { ok: false, error: credentials.error, processed: [] };
-  }
-
-  const processed: string[] = [];
-  const result = await withConnection(connection, credentials, async (db) => {
-    const ids = await revertLatestBatch(db, {
-      migrationsDir: config.migrationsDir,
-      connectionName: connection.name,
-      migrationTable: connection.migrationTable,
-      format: config.migrationFormat!,
-      cwd,
-    });
-    processed.push(...ids);
-  });
-
-  if (!result.ok) {
-    return { ok: false, error: result.error, processed };
-  }
-  return { ok: true, processed };
+  return runWithConnection(config, connection, cwd, revertLatestBatch);
 }
 
 export async function rollbackAll(
@@ -284,33 +332,27 @@ export async function rollbackAll(
   connection: Connection,
   cwd = process.cwd(),
 ): Promise<RunResult> {
-  if (!config.migrationFormat) {
-    return {
-      ok: false,
-      error: "Migration format is not configured",
-      processed: [],
-    };
-  }
+  return runWithConnection(config, connection, cwd, revertAllApplied);
+}
 
-  const credentials = requireCredentials(connection.name);
-  if ("error" in credentials) {
-    return { ok: false, error: credentials.error, processed: [] };
-  }
+export async function rollbackOne(
+  config: Config,
+  connection: Connection,
+  id: string,
+  cwd = process.cwd(),
+): Promise<RunResult> {
+  return runWithConnection(config, connection, cwd, (db, options) =>
+    revertMigration(db, options, id),
+  );
+}
 
-  const processed: string[] = [];
-  const result = await withConnection(connection, credentials, async (db) => {
-    const ids = await revertAllApplied(db, {
-      migrationsDir: config.migrationsDir,
-      connectionName: connection.name,
-      migrationTable: connection.migrationTable,
-      format: config.migrationFormat!,
-      cwd,
-    });
-    processed.push(...ids);
-  });
-
-  if (!result.ok) {
-    return { ok: false, error: result.error, processed };
-  }
-  return { ok: true, processed };
+export async function rollbackAfter(
+  config: Config,
+  connection: Connection,
+  id: string,
+  cwd = process.cwd(),
+): Promise<RunResult> {
+  return runWithConnection(config, connection, cwd, (db, options) =>
+    revertMigrationsAfter(db, options, id),
+  );
 }

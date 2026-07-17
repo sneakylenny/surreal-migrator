@@ -5,10 +5,13 @@ import path from "node:path";
 import { fetchAppliedMigrationsOn, listDbTables } from "../db.ts";
 import { withMemDb } from "../test/mem-db.ts";
 import {
+  applyMigration,
   applyPendingMigrations,
   nextBatchNumber,
   revertAllApplied,
   revertLatestBatch,
+  revertMigration,
+  revertMigrationsAfter,
   sortForRollback,
   type MigrationRunOptions,
 } from "./run.ts";
@@ -221,6 +224,144 @@ describe("migrate + rollback (ts) with embedded mem://", () => {
         const after = await listDbTables(db);
         expect(after).not.toContain("widget");
         expect(after).not.toContain("item");
+      },
+      { migrationTable: "migration" },
+    );
+  });
+});
+
+describe("single migration manager ops (surql)", () => {
+  test("applies one pending while earlier stays pending", async () => {
+    const fixture = await createFixture("surql");
+
+    await withMemDb(
+      async (db) => {
+        const processed = await applyMigration(
+          db,
+          fixture,
+          "20260101000002_create-item",
+        );
+        expect(processed).toEqual(["20260101000002_create-item"]);
+
+        const applied = await fetchAppliedMigrationsOn(db, "migration");
+        expect(applied.map((m) => m.id)).toEqual([
+          "20260101000002_create-item",
+        ]);
+
+        const tables = await listDbTables(db);
+        expect(tables).toContain("item");
+        expect(tables).not.toContain("widget");
+      },
+      { migrationTable: "migration" },
+    );
+  });
+
+  test("applyMigration is a no-op when already applied", async () => {
+    const fixture = await createFixture("surql");
+
+    await withMemDb(
+      async (db) => {
+        await applyMigration(db, fixture, "20260101000001_create-widget");
+        const again = await applyMigration(
+          db,
+          fixture,
+          "20260101000001_create-widget",
+        );
+        expect(again).toEqual([]);
+      },
+      { migrationTable: "migration" },
+    );
+  });
+
+  test("reverts one applied while later stays applied", async () => {
+    const fixture = await createFixture("surql");
+
+    await withMemDb(
+      async (db) => {
+        await applyPendingMigrations(db, fixture);
+
+        const reverted = await revertMigration(
+          db,
+          fixture,
+          "20260101000001_create-widget",
+        );
+        expect(reverted).toEqual(["20260101000001_create-widget"]);
+
+        const applied = await fetchAppliedMigrationsOn(db, "migration");
+        expect(applied.map((m) => m.id)).toEqual([
+          "20260101000002_create-item",
+        ]);
+
+        const tables = await listDbTables(db);
+        expect(tables).not.toContain("widget");
+        expect(tables).toContain("item");
+      },
+      { migrationTable: "migration" },
+    );
+  });
+
+  test("revertMigration is a no-op when not applied", async () => {
+    const fixture = await createFixture("surql");
+
+    await withMemDb(
+      async (db) => {
+        const reverted = await revertMigration(
+          db,
+          fixture,
+          "20260101000001_create-widget",
+        );
+        expect(reverted).toEqual([]);
+      },
+      { migrationTable: "migration" },
+    );
+  });
+
+  test("revertMigrationsAfter leaves selected applied", async () => {
+    const fixture = await createFixture("surql");
+
+    await withMemDb(
+      async (db) => {
+        await applyPendingMigrations(db, fixture);
+
+        await writeFile(
+          path.join(
+            fixture.cwd,
+            fixture.migrationsDir,
+            fixture.connectionName,
+            "20260101000003_create-tag.up.surql",
+          ),
+          "DEFINE TABLE tag SCHEMALESS;\n",
+        );
+        await writeFile(
+          path.join(
+            fixture.cwd,
+            fixture.migrationsDir,
+            fixture.connectionName,
+            "20260101000003_create-tag.down.surql",
+          ),
+          "REMOVE TABLE IF EXISTS tag;\n",
+        );
+        await applyPendingMigrations(db, fixture);
+
+        const reverted = await revertMigrationsAfter(
+          db,
+          fixture,
+          "20260101000001_create-widget",
+        );
+        expect(reverted).toEqual([
+          "20260101000003_create-tag",
+          "20260101000002_create-item",
+        ]);
+
+        const applied = await fetchAppliedMigrationsOn(db, "migration");
+        expect(applied.map((m) => m.id)).toEqual([
+          "20260101000001_create-widget",
+        ]);
+
+        const tables = await listDbTables(db);
+        expect(tables).toContain("widget");
+        expect(tables).not.toContain("item");
+        expect(tables).not.toContain("tag");
       },
       { migrationTable: "migration" },
     );

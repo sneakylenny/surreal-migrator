@@ -37,10 +37,18 @@ flowchart TD
   rollbackMenu -->|batch| rollbackBatch["Down latest batch"]
   rollbackMenu -->|all| rollbackAll["Down all applied"]
   rollbackMenu -->|back| connectionMenu
-  connectionMenu -->|migration manager| manager["Coming soon"]
+  connectionMenu -->|migration manager| managerList["List local migrations with applied/pending"]
+  managerList -->|select pending| confirmRun["Confirm run this migration"]
+  confirmRun -->|yes| migrateOne["Apply single migration"]
+  managerList -->|select applied| appliedMenu["Rollback to here / Rollback this"]
+  appliedMenu -->|to here| rollbackAfter["Down migrations after selected"]
+  appliedMenu -->|this| rollbackOne["Down selected migration only"]
   migrateUp --> connectionMenu
   rollbackBatch --> connectionMenu
   rollbackAll --> connectionMenu
-  manager --> connectionMenu
+  migrateOne --> managerList
+  rollbackAfter --> managerList
+  rollbackOne --> managerList
+  managerList -->|back| connectionMenu
   connectionMenu -->|back| connectionsMenu
 ```

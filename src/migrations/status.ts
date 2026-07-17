@@ -16,6 +16,33 @@ export type MigrationStatus = {
   error?: string;
 };
 
+export type MigrationListEntry = {
+  id: string;
+  status: "applied" | "pending";
+};
+
+export function listMigrationsWithStatus(
+  status: MigrationStatus,
+): MigrationListEntry[] {
+  const appliedSet = new Set(status.applied);
+  return status.local.map((id) => ({
+    id,
+    status: appliedSet.has(id) ? "applied" : "pending",
+  }));
+}
+
+export function formatManagerHint(status: MigrationStatus): string {
+  if (status.error) {
+    return "status unavailable";
+  }
+  if (status.local.length === 0) {
+    return "no migrations";
+  }
+  const applied = status.applied.length;
+  const pending = status.pending.length;
+  return `${applied} applied, ${pending} pending`;
+}
+
 /** Extract migration id from a filename based on format. */
 export function migrationIdFromFilename(
   filename: string,

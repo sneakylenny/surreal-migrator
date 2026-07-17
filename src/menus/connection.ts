@@ -8,6 +8,7 @@ import {
   type RunResult,
 } from "../migrations/run.ts";
 import {
+  formatManagerHint,
   formatPendingHint,
   formatPendingOverview,
   formatRollbackHint,
@@ -15,6 +16,7 @@ import {
   type MigrationStatus,
 } from "../migrations/status.ts";
 import { theme } from "../theme.ts";
+import { showMigrationManager } from "./manager.ts";
 
 export type ConnectionMenuResult = {
   status: "back" | "quit";
@@ -175,7 +177,7 @@ export async function showConnectionMenu(
         {
           value: "manager",
           label: "Migration manager",
-          hint: "coming soon",
+          hint: formatManagerHint(migrationStatus),
         },
         { value: "back", label: "Back" },
         { value: "quit", label: "Quit" },
@@ -213,7 +215,7 @@ export async function showConnectionMenu(
         await showRollbackMenu(current, connection, migrationStatus);
         break;
       case "manager":
-        p.log.warn(theme.muted("Not implemented yet — placeholder for later."));
+        await showMigrationManager(current, connection);
         break;
       case "back":
         return { status: "back", config: current };

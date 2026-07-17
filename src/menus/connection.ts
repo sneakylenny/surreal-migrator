@@ -2,6 +2,7 @@ import * as p from "@clack/prompts";
 import {
   findConnection,
   resolveMigrationFormat,
+  saveConfig,
   type Config,
   type Connection,
 } from "../config.ts";
@@ -154,6 +155,7 @@ export async function showConnectionMenu(
       current,
       currentConnection,
     );
+    const isDefault = current.defaultConnection === currentConnection.name;
     const format = resolveMigrationFormat(current, currentConnection);
 
     p.note(
@@ -170,7 +172,9 @@ export async function showConnectionMenu(
             : theme.muted(line),
         ),
       ].join("\n"),
-      theme.title(currentConnection.name),
+      theme.title(
+        isDefault ? `${currentConnection.name} (default)` : currentConnection.name,
+      ),
     );
 
     const action = await p.select({
@@ -191,6 +195,11 @@ export async function showConnectionMenu(
           value: "manager",
           label: "Migration manager",
           hint: formatManagerHint(migrationStatus),
+        },
+        {
+          value: "makeDefault",
+          label: "Make default",
+          hint: isDefault ? "already default" : undefined,
         },
         { value: "back", label: "Back" },
         { value: "quit", label: "Quit" },
@@ -230,6 +239,22 @@ export async function showConnectionMenu(
       case "manager":
         await showMigrationManager(current, currentConnection);
         break;
+      case "makeDefault": {
+        if (isDefault) {
+          p.log.info(theme.muted("Already the default connection."));
+          break;
+        }
+        current = {
+          ...current,
+          defaultConnection: currentConnection.name,
+        };
+        await saveConfig(current);
+        p.log.success(
+          theme.success(`Set "${currentConnection.name}" as the default connection`),
+        );
+        await Bun.sleep(800);
+        break;
+      }
       case "back":
         return { status: "back", config: current };
       case "quit":

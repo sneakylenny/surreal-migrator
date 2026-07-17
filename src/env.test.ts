@@ -1,6 +1,52 @@
 import { describe, expect, test } from "bun:test";
-import { isValidKebabCase, isValidTableName } from "./config.ts";
+import {
+  connectionsForMenu,
+  isValidKebabCase,
+  isValidTableName,
+  type Config,
+  type Connection,
+} from "./config.ts";
 import { connectionEnvKey, connectionEnvSegment } from "./env.ts";
+
+function conn(name: string): Connection {
+  return {
+    name,
+    endpoint: "ws://localhost:8000",
+    namespace: "main",
+    database: "main",
+    migrationTable: "migration",
+    migrationFormat: null,
+  };
+}
+
+describe("connectionsForMenu", () => {
+  test("puts default first and keeps config order for the rest", () => {
+    const config: Config = {
+      migrationsDir: "surreal",
+      defaultConnection: "typescript",
+      migrationFormat: null,
+      connections: [conn("surql"), conn("typescript"), conn("other")],
+    };
+    expect(connectionsForMenu(config).map((c) => c.name)).toEqual([
+      "typescript",
+      "surql",
+      "other",
+    ]);
+  });
+
+  test("preserves config order when no default is set", () => {
+    const config: Config = {
+      migrationsDir: "surreal",
+      defaultConnection: null,
+      migrationFormat: null,
+      connections: [conn("surql"), conn("typescript")],
+    };
+    expect(connectionsForMenu(config).map((c) => c.name)).toEqual([
+      "surql",
+      "typescript",
+    ]);
+  });
+});
 
 describe("connection env keys", () => {
   test("maps kebab-case to UPPER_SNAKE segment", () => {

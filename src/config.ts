@@ -89,6 +89,16 @@ export function connectionExists(config: Config, name: string): boolean {
   return config.connections.some((c) => c.name === name);
 }
 
+/** Default connection first, then remaining connections in config order. */
+export function connectionsForMenu(config: Config): Connection[] {
+  const defaultName = config.defaultConnection;
+  if (!defaultName) return [...config.connections];
+
+  const preferred = config.connections.filter((c) => c.name === defaultName);
+  const rest = config.connections.filter((c) => c.name !== defaultName);
+  return [...preferred, ...rest];
+}
+
 /** Connection override, else project default. */
 export function resolveMigrationFormat(
   config: Config,

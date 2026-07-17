@@ -50,5 +50,7 @@ flowchart TD
   rollbackAfter --> managerList
   rollbackOne --> managerList
   managerList -->|back| connectionMenu
+  connectionMenu -->|make default| setDefaultFromMenu[Set defaultConnection]
+  setDefaultFromMenu --> connectionMenu
   connectionMenu -->|back| connectionsMenu
 ```

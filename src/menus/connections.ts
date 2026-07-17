@@ -1,6 +1,7 @@
 import * as p from "@clack/prompts";
 import {
   connectionExists,
+  connectionsForMenu,
   findConnection,
   isValidKebabCase,
   isValidTableName,
@@ -22,7 +23,7 @@ export async function showConnectionsMenu(config: Config): Promise<void> {
 
   while (true) {
     const options = [
-      ...current.connections.map((c) => ({
+      ...connectionsForMenu(current).map((c) => ({
         value: c.name,
         label:
           current.defaultConnection === c.name

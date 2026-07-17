@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import type { Config, Connection, MigrationFormat } from "../config.ts";
-import { fetchAppliedMigrationIds } from "../db.ts";
+import { fetchAppliedMigrations } from "../db.ts";
 import {
   getConnectionCredentials,
   type ConnectionCredentials,
@@ -11,6 +11,8 @@ export type MigrationStatus = {
   local: string[];
   applied: string[];
   pending: string[];
+  /** Number of migrations in the latest applied batch (for rollback hint). */
+  latestBatchCount: number;
   error?: string;
 };
 
@@ -50,13 +52,21 @@ export async function listLocalMigrationIds(
   return [...new Set(ids)].sort();
 }
 
+export function latestBatchSize(
+  applied: { batchNumber: number }[],
+): number {
+  if (applied.length === 0) return 0;
+  const latest = Math.max(...applied.map((m) => m.batchNumber));
+  return applied.filter((m) => m.batchNumber === latest).length;
+}
+
 export async function getMigrationStatus(
   config: Config,
   connection: Connection,
   cwd = process.cwd(),
 ): Promise<MigrationStatus> {
   if (!config.migrationFormat) {
-    return { local: [], applied: [], pending: [] };
+    return { local: [], applied: [], pending: [], latestBatchCount: 0 };
   }
 
   const local = await listLocalMigrationIds(
@@ -72,6 +82,7 @@ export async function getMigrationStatus(
       local,
       applied: [],
       pending: local,
+      latestBatchCount: 0,
       error: "Missing credentials in .env",
     };
   }
@@ -81,20 +92,27 @@ export async function getMigrationStatus(
     password: creds.password,
   };
 
-  const appliedResult = await fetchAppliedMigrationIds(connection, credentials);
+  const appliedResult = await fetchAppliedMigrations(connection, credentials);
   if (!appliedResult.ok) {
     return {
       local,
       applied: [],
       pending: local,
+      latestBatchCount: 0,
       error: appliedResult.error,
     };
   }
 
-  const appliedSet = new Set(appliedResult.ids);
+  const appliedIds = appliedResult.migrations.map((m) => m.id);
+  const appliedSet = new Set(appliedIds);
   const pending = local.filter((id) => !appliedSet.has(id));
 
-  return { local, applied: appliedResult.ids, pending };
+  return {
+    local,
+    applied: appliedIds,
+    pending,
+    latestBatchCount: latestBatchSize(appliedResult.migrations),
+  };
 }
 
 export function formatPendingHint(status: MigrationStatus): string {
@@ -105,6 +123,19 @@ export function formatPendingHint(status: MigrationStatus): string {
     return "up to date";
   }
   return `${status.pending.length} pending`;
+}
+
+export function formatRollbackHint(status: MigrationStatus): string {
+  if (status.error) {
+    return "status unavailable";
+  }
+  if (status.latestBatchCount === 0) {
+    return "nothing to roll back";
+  }
+  if (status.latestBatchCount === 1) {
+    return "1 migration";
+  }
+  return `${status.latestBatchCount} migrations`;
 }
 
 export function formatPendingOverview(status: MigrationStatus): string[] {

@@ -33,10 +33,14 @@ flowchart TD
   namePrompt --> writeFiles["Write files under migrationsDir/connection/"]
   writeFiles --> connectionMenu
   connectionMenu -->|migrate| migrateUp["Apply pending ups as one batch"]
-  connectionMenu -->|rollback batch| rollbackBatch["Down latest batchNumber"]
-  connectionMenu -->|rollback all| rollbackAll["Down all applied reverse order"]
+  connectionMenu -->|rollback| rollbackMenu[Rollback submenu]
+  rollbackMenu -->|batch| rollbackBatch["Down latest batch"]
+  rollbackMenu -->|all| rollbackAll["Down all applied"]
+  rollbackMenu -->|back| connectionMenu
+  connectionMenu -->|migration manager| manager["Coming soon"]
   migrateUp --> connectionMenu
   rollbackBatch --> connectionMenu
   rollbackAll --> connectionMenu
+  manager --> connectionMenu
   connectionMenu -->|back| connectionsMenu
 ```

@@ -55,6 +55,22 @@ export async function verifyConnection(
   return result.ok ? { ok: true } : result;
 }
 
+export async function ensureMigrationTableOn(
+  db: Surreal,
+  tableName: string,
+): Promise<void> {
+  await db
+    .query(
+      /* surql */ `
+DEFINE TABLE IF NOT EXISTS $table SCHEMALESS;
+DEFINE FIELD IF NOT EXISTS batchNumber ON $table TYPE number;
+DEFINE FIELD IF NOT EXISTS appliedAt ON $table TYPE datetime;
+`,
+      { table: tableName },
+    )
+    .collect();
+}
+
 export async function ensureMigrationTable(
   connection: Pick<
     Connection,
@@ -63,16 +79,7 @@ export async function ensureMigrationTable(
   credentials: ConnectionCredentials,
 ): Promise<DbResult> {
   const result = await withConnection(connection, credentials, async (db) => {
-    await db
-      .query(
-        /* surql */ `
-DEFINE TABLE IF NOT EXISTS $table SCHEMALESS;
-DEFINE FIELD IF NOT EXISTS batchNumber ON $table TYPE number;
-DEFINE FIELD IF NOT EXISTS appliedAt ON $table TYPE datetime;
-`,
-        { table: connection.migrationTable },
-      )
-      .collect();
+    await ensureMigrationTableOn(db, connection.migrationTable);
   });
   return result.ok ? { ok: true } : result;
 }
@@ -95,6 +102,31 @@ export function recordIdKey(value: unknown): string | null {
   return key.replace(/^⟨/, "").replace(/⟩$/, "");
 }
 
+export async function fetchAppliedMigrationsOn(
+  db: Surreal,
+  tableName: string,
+): Promise<AppliedMigration[]> {
+  const table = new Table(tableName);
+  const rows = await db
+    .query<{ id: unknown; batchNumber?: number; appliedAt?: unknown }[][]>(
+      surql`SELECT id, batchNumber, appliedAt FROM ${table}`,
+    )
+    .collect();
+
+  return (rows[0] ?? [])
+    .map((row) => {
+      const id = recordIdKey(row.id);
+      if (!id) return null;
+      return {
+        id,
+        batchNumber: Number(row.batchNumber ?? 0),
+        appliedAt: row.appliedAt,
+      } satisfies AppliedMigration;
+    })
+    .filter((row): row is AppliedMigration => row !== null)
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
 export async function fetchAppliedMigrations(
   connection: Pick<
     Connection,
@@ -103,33 +135,13 @@ export async function fetchAppliedMigrations(
   credentials: ConnectionCredentials,
 ): Promise<AppliedMigrationsResult> {
   const result = await withConnection(connection, credentials, async (db) => {
-    const table = new Table(connection.migrationTable);
-    const rows = await db
-      .query<
-        { id: unknown; batchNumber?: number; appliedAt?: unknown }[][]
-      >(surql`SELECT id, batchNumber, appliedAt FROM ${table}`)
-      .collect();
-
-    const records = rows[0] ?? [];
-    return records
-      .map((row) => {
-        const id = recordIdKey(row.id);
-        if (!id) return null;
-        return {
-          id,
-          batchNumber: Number(row.batchNumber ?? 0),
-          appliedAt: row.appliedAt,
-        } satisfies AppliedMigration;
-      })
-      .filter((row): row is AppliedMigration => row !== null)
-      .sort((a, b) => a.id.localeCompare(b.id));
+    return fetchAppliedMigrationsOn(db, connection.migrationTable);
   });
 
   if (!result.ok) return result;
   return { ok: true, migrations: result.value };
 }
 
-/** @deprecated Prefer fetchAppliedMigrations */
 export async function fetchAppliedMigrationIds(
   connection: Pick<
     Connection,
@@ -148,12 +160,10 @@ export async function markMigrationApplied(
   migrationId: string,
   batchNumber: number,
 ): Promise<void> {
-  await db
-    .create(new RecordId(tableName, migrationId))
-    .content({
-      batchNumber,
-      appliedAt: new Date(),
-    });
+  await db.create(new RecordId(tableName, migrationId)).content({
+    batchNumber,
+    appliedAt: new Date(),
+  });
 }
 
 export async function markMigrationReverted(
@@ -162,4 +172,10 @@ export async function markMigrationReverted(
   migrationId: string,
 ): Promise<void> {
   await db.delete(new RecordId(tableName, migrationId));
+}
+
+export async function listDbTables(db: Surreal): Promise<string[]> {
+  const rows = await db.query("INFO FOR DB").collect();
+  const info = rows[0] as { tables?: Record<string, unknown> } | undefined;
+  return Object.keys(info?.tables ?? {}).sort();
 }

@@ -1,11 +1,11 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { Table, surql, type Surreal } from "surrealdb";
+import type { Surreal } from "surrealdb";
 import type { Config, Connection, MigrationFormat } from "../config.ts";
 import {
+  fetchAppliedMigrationsOn,
   markMigrationApplied,
   markMigrationReverted,
-  recordIdKey,
   withConnection,
   type AppliedMigration,
 } from "../db.ts";
@@ -14,11 +14,19 @@ import {
   type ConnectionCredentials,
 } from "../env.ts";
 import { connectionMigrationsDir } from "./create.ts";
-import { getMigrationStatus } from "./status.ts";
+import { listLocalMigrationIds } from "./status.ts";
 
 export type RunResult =
   | { ok: true; processed: string[] }
   | { ok: false; error: string; processed: string[] };
+
+export type MigrationRunOptions = {
+  migrationsDir: string;
+  connectionName: string;
+  migrationTable: string;
+  format: MigrationFormat;
+  cwd?: string;
+};
 
 type TsMigrationModule = {
   up?: (db: Surreal) => Promise<void>;
@@ -101,35 +109,102 @@ async function runDown(
   await mod.down(db);
 }
 
-async function loadApplied(db: Surreal, tableName: string): Promise<AppliedMigration[]> {
-  const table = new Table(tableName);
-  const rows = await db
-    .query<{ id: unknown; batchNumber?: number; appliedAt?: unknown }[][]>(
-      surql`SELECT id, batchNumber, appliedAt FROM ${table}`,
-    )
-    .collect();
-
-  return (rows[0] ?? [])
-    .map((row) => {
-      const id = recordIdKey(row.id);
-      if (!id) return null;
-      return {
-        id,
-        batchNumber: Number(row.batchNumber ?? 0),
-        appliedAt: row.appliedAt,
-      } satisfies AppliedMigration;
-    })
-    .filter((row): row is AppliedMigration => row !== null);
-}
-
-function nextBatchNumber(applied: AppliedMigration[]): number {
+export function nextBatchNumber(applied: AppliedMigration[]): number {
   if (applied.length === 0) return 1;
   return Math.max(...applied.map((m) => m.batchNumber)) + 1;
 }
 
-function sortForRollback(a: AppliedMigration, b: AppliedMigration): number {
+export function sortForRollback(
+  a: AppliedMigration,
+  b: AppliedMigration,
+): number {
   if (a.batchNumber !== b.batchNumber) return b.batchNumber - a.batchNumber;
   return b.id.localeCompare(a.id);
+}
+
+/** Apply all pending migrations on an open DB session (same batch). */
+export async function applyPendingMigrations(
+  db: Surreal,
+  options: MigrationRunOptions,
+): Promise<string[]> {
+  const cwd = options.cwd ?? process.cwd();
+  const dir = connectionMigrationsDir(
+    options.migrationsDir,
+    options.connectionName,
+    cwd,
+  );
+  const local = await listLocalMigrationIds(
+    options.migrationsDir,
+    options.connectionName,
+    options.format,
+    cwd,
+  );
+  const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
+  const appliedSet = new Set(applied.map((m) => m.id));
+  const pending = local.filter((id) => !appliedSet.has(id));
+  if (pending.length === 0) return [];
+
+  const batchNumber = nextBatchNumber(applied);
+  const processed: string[] = [];
+
+  for (const id of pending) {
+    await runUp(db, options.format, dir, id);
+    await markMigrationApplied(db, options.migrationTable, id, batchNumber);
+    processed.push(id);
+  }
+
+  return processed;
+}
+
+/** Roll back the latest batch on an open DB session. */
+export async function revertLatestBatch(
+  db: Surreal,
+  options: MigrationRunOptions,
+): Promise<string[]> {
+  const cwd = options.cwd ?? process.cwd();
+  const dir = connectionMigrationsDir(
+    options.migrationsDir,
+    options.connectionName,
+    cwd,
+  );
+  const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
+  if (applied.length === 0) return [];
+
+  const latestBatch = Math.max(...applied.map((m) => m.batchNumber));
+  const batch = applied
+    .filter((m) => m.batchNumber === latestBatch)
+    .sort(sortForRollback);
+
+  const processed: string[] = [];
+  for (const migration of batch) {
+    await runDown(db, options.format, dir, migration.id);
+    await markMigrationReverted(db, options.migrationTable, migration.id);
+    processed.push(migration.id);
+  }
+  return processed;
+}
+
+/** Roll back every applied migration on an open DB session. */
+export async function revertAllApplied(
+  db: Surreal,
+  options: MigrationRunOptions,
+): Promise<string[]> {
+  const cwd = options.cwd ?? process.cwd();
+  const dir = connectionMigrationsDir(
+    options.migrationsDir,
+    options.connectionName,
+    cwd,
+  );
+  const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
+  const ordered = [...applied].sort(sortForRollback);
+
+  const processed: string[] = [];
+  for (const migration of ordered) {
+    await runDown(db, options.format, dir, migration.id);
+    await markMigrationReverted(db, options.migrationTable, migration.id);
+    processed.push(migration.id);
+  }
+  return processed;
 }
 
 export async function migrateUp(
@@ -150,33 +225,16 @@ export async function migrateUp(
     return { ok: false, error: credentials.error, processed: [] };
   }
 
-  const status = await getMigrationStatus(config, connection, cwd);
-  if (status.pending.length === 0) {
-    return { ok: true, processed: [] };
-  }
-
-  const dir = connectionMigrationsDir(
-    config.migrationsDir,
-    connection.name,
-    cwd,
-  );
-  const format = config.migrationFormat;
   const processed: string[] = [];
-
   const result = await withConnection(connection, credentials, async (db) => {
-    const applied = await loadApplied(db, connection.migrationTable);
-    const batchNumber = nextBatchNumber(applied);
-
-    for (const id of status.pending) {
-      await runUp(db, format, dir, id);
-      await markMigrationApplied(
-        db,
-        connection.migrationTable,
-        id,
-        batchNumber,
-      );
-      processed.push(id);
-    }
+    const ids = await applyPendingMigrations(db, {
+      migrationsDir: config.migrationsDir,
+      connectionName: connection.name,
+      migrationTable: connection.migrationTable,
+      format: config.migrationFormat!,
+      cwd,
+    });
+    processed.push(...ids);
   });
 
   if (!result.ok) {
@@ -203,32 +261,16 @@ export async function rollbackBatch(
     return { ok: false, error: credentials.error, processed: [] };
   }
 
-  const dir = connectionMigrationsDir(
-    config.migrationsDir,
-    connection.name,
-    cwd,
-  );
-  const format = config.migrationFormat;
   const processed: string[] = [];
-
   const result = await withConnection(connection, credentials, async (db) => {
-    const applied = await loadApplied(db, connection.migrationTable);
-    if (applied.length === 0) return;
-
-    const latestBatch = Math.max(...applied.map((m) => m.batchNumber));
-    const batch = applied
-      .filter((m) => m.batchNumber === latestBatch)
-      .sort(sortForRollback);
-
-    for (const migration of batch) {
-      await runDown(db, format, dir, migration.id);
-      await markMigrationReverted(
-        db,
-        connection.migrationTable,
-        migration.id,
-      );
-      processed.push(migration.id);
-    }
+    const ids = await revertLatestBatch(db, {
+      migrationsDir: config.migrationsDir,
+      connectionName: connection.name,
+      migrationTable: connection.migrationTable,
+      format: config.migrationFormat!,
+      cwd,
+    });
+    processed.push(...ids);
   });
 
   if (!result.ok) {
@@ -255,27 +297,16 @@ export async function rollbackAll(
     return { ok: false, error: credentials.error, processed: [] };
   }
 
-  const dir = connectionMigrationsDir(
-    config.migrationsDir,
-    connection.name,
-    cwd,
-  );
-  const format = config.migrationFormat;
   const processed: string[] = [];
-
   const result = await withConnection(connection, credentials, async (db) => {
-    const applied = await loadApplied(db, connection.migrationTable);
-    const ordered = [...applied].sort(sortForRollback);
-
-    for (const migration of ordered) {
-      await runDown(db, format, dir, migration.id);
-      await markMigrationReverted(
-        db,
-        connection.migrationTable,
-        migration.id,
-      );
-      processed.push(migration.id);
-    }
+    const ids = await revertAllApplied(db, {
+      migrationsDir: config.migrationsDir,
+      connectionName: connection.name,
+      migrationTable: connection.migrationTable,
+      format: config.migrationFormat!,
+      cwd,
+    });
+    processed.push(...ids);
   });
 
   if (!result.ok) {

@@ -1,10 +1,14 @@
 import {
   BoxRenderable,
+  InputRenderable,
+  InputRenderableEvents,
   SelectRenderable,
   SelectRenderableEvents,
   TextRenderable,
   type SelectOption,
 } from "@opentui/core";
+import path from "node:path";
+import { createMigration } from "../../core/commands/migration/create.ts";
 import { migrateUp } from "../../core/commands/migration/migrate.ts";
 import {
   rollbackAll,
@@ -35,7 +39,7 @@ const MANAGER = "manager";
 const EDIT = "edit";
 const BACK = "back";
 
-type OverlayMode = "none" | "confirm" | "rollback-menu";
+type OverlayMode = "none" | "confirm" | "rollback-menu" | "create-name";
 
 function formatLabel(format: "surql" | "ts"): string {
   return format === "ts" ? "TypeScript" : "Split SurQL";
@@ -423,6 +427,56 @@ export function mountConnectionScreen(
     showRollbackMenu();
   }
 
+  async function submitCreateMigration(name: string) {
+    if (busy) return;
+    busy = true;
+    setActionStatus("Creating…", "muted");
+    try {
+      const result = await createMigration(
+        ctx.getConfig(),
+        connection,
+        name,
+      );
+      if (!result.ok) {
+        busy = false;
+        setActionStatus(result.error, "error");
+        return;
+      }
+      const relative = result.files
+        .map((file) => path.relative(process.cwd(), file))
+        .join(", ");
+      remount({ message: `Created: ${relative}`, kind: "success" });
+    } catch (err) {
+      remount({
+        message: err instanceof Error ? err.message : String(err),
+        kind: "error",
+      });
+    }
+  }
+
+  function showCreateMigration() {
+    clearOverlay();
+    overlayMode = "create-name";
+    setActionStatus("Migration name (kebab-case)", "muted");
+    const input = new InputRenderable(renderer, {
+      id: "connection-create-name",
+      width: "100%",
+      value: "",
+      placeholder: "add-users",
+      flexShrink: 0,
+      backgroundColor: colors.lavender,
+      focusedBackgroundColor: colors.purple,
+      textColor: colors.moonlit,
+      focusedTextColor: colors.moonlit,
+      cursorColor: colors.pink,
+    });
+    input.on(InputRenderableEvents.ENTER, () => {
+      void submitCreateMigration(input.value);
+    });
+    overlayBox.add(input);
+    input.focus();
+  }
+
   const unsubscribe = onKeypress(renderer, (key) => {
     if (key.name !== "escape") return;
     key.preventDefault();
@@ -449,6 +503,11 @@ export function mountConnectionScreen(
         disposed = true;
         unsubscribe();
         ctx.showEditConnection(connection.name);
+        return;
+      }
+
+      if (option.value === CREATE) {
+        showCreateMigration();
         return;
       }
 

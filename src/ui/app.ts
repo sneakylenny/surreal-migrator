@@ -31,9 +31,9 @@ export async function startApp(initialConfig: Config): Promise<void> {
       clearScreen(renderer);
       mountCreateConnectionScreen(ctx);
     },
-    showConnection: (name) => {
+    showConnection: (name, flash) => {
       clearScreen(renderer);
-      mountConnectionScreen(ctx, name);
+      mountConnectionScreen(ctx, name, flash);
     },
     showEditConnection: (name) => {
       clearScreen(renderer);

@@ -1,13 +1,18 @@
 import type { CliRenderer, Renderable } from "@opentui/core";
 import type { Config } from "../core/config.ts";
 
+export type ActionFlash = {
+  message: string;
+  kind: "success" | "error" | "muted";
+};
+
 export type AppContext = {
   renderer: CliRenderer;
   getConfig: () => Config;
   setConfig: (config: Config) => void;
   showConnections: () => void;
   showCreateConnection: () => void;
-  showConnection: (name: string) => void;
+  showConnection: (name: string, flash?: ActionFlash) => void;
   showEditConnection: (name: string) => void;
 };
 

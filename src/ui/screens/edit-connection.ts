@@ -393,6 +393,10 @@ export function mountEditConnectionScreen(
       return;
     }
     ctx.setConfig(result.config);
+    ctx.sessionLog.add({
+      kind: "updated_connection",
+      name: existing.name,
+    });
     cleanup();
     ctx.showConnection(existing.name);
   }

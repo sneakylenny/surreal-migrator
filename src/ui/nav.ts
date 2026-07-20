@@ -1,5 +1,6 @@
 import type { CliRenderer, Renderable } from "@opentui/core";
 import type { Config } from "../core/config.ts";
+import type { SessionLog } from "./session-log.ts";
 
 export type ActionFlash = {
   message: string;
@@ -10,11 +11,15 @@ export type AppContext = {
   renderer: CliRenderer;
   getConfig: () => Config;
   setConfig: (config: Config) => void;
+  sessionLog: SessionLog;
+  /** Tear down the TUI, print session activity, then exit. */
+  exitApp: (code?: number) => void;
   showConnections: () => void;
   showCreateConnection: () => void;
   showConnection: (name: string, flash?: ActionFlash) => void;
   showEditConnection: (name: string) => void;
   showMigrationManager: (name: string, flash?: ActionFlash) => void;
+  showSessionLog: () => void;
 };
 
 /** Destroy and detach all children of the renderer root. */

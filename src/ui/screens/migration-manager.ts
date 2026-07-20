@@ -544,6 +544,13 @@ export function mountMigrationManagerScreen(
     clearOverlay();
     setActionStatus("Migrating…", "muted");
     const result = await migrateOne(ctx.getConfig(), connection, id);
+    if (result.ok && result.processed.length > 0) {
+      ctx.sessionLog.add({
+        kind: "migrated",
+        connection: connection.name,
+        ids: result.processed,
+      });
+    }
     remount(formatRunResult("Migrated", result, "Nothing to migrate."));
   }
 
@@ -553,6 +560,13 @@ export function mountMigrationManagerScreen(
     clearOverlay();
     setActionStatus("Migrating…", "muted");
     const result = await migrateThrough(ctx.getConfig(), connection, id);
+    if (result.ok && result.processed.length > 0) {
+      ctx.sessionLog.add({
+        kind: "migrated",
+        connection: connection.name,
+        ids: result.processed,
+      });
+    }
     remount(formatRunResult("Migrated", result, "Nothing to migrate."));
   }
 
@@ -562,6 +576,13 @@ export function mountMigrationManagerScreen(
     clearOverlay();
     setActionStatus("Rolling back…", "muted");
     const result = await rollbackOne(ctx.getConfig(), connection, id);
+    if (result.ok && result.processed.length > 0) {
+      ctx.sessionLog.add({
+        kind: "rolled_back",
+        connection: connection.name,
+        ids: result.processed,
+      });
+    }
     remount(formatRunResult("Rolled back", result, "Nothing to roll back."));
   }
 
@@ -571,6 +592,13 @@ export function mountMigrationManagerScreen(
     clearOverlay();
     setActionStatus("Rolling back…", "muted");
     const result = await rollbackAfter(ctx.getConfig(), connection, id);
+    if (result.ok && result.processed.length > 0) {
+      ctx.sessionLog.add({
+        kind: "rolled_back",
+        connection: connection.name,
+        ids: result.processed,
+      });
+    }
     remount(formatRunResult("Rolled back", result, "Nothing to roll back."));
   }
 
@@ -584,6 +612,13 @@ export function mountMigrationManagerScreen(
       connection,
       id,
     );
+    if (result.ok && result.processed.length > 0) {
+      ctx.sessionLog.add({
+        kind: "deleted_record",
+        connection: connection.name,
+        id: result.processed[0]!,
+      });
+    }
     remount(
       formatRunResult(
         "Deleted record",

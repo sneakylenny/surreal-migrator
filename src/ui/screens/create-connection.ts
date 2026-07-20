@@ -328,6 +328,7 @@ export function mountCreateConnectionScreen(ctx: AppContext): void {
       return;
     }
     ctx.setConfig(result.config);
+    ctx.sessionLog.add({ kind: "created_connection", name: input.name.trim() });
     cleanup();
     ctx.showConnections();
   }

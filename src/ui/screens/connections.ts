@@ -12,6 +12,7 @@ import { onKeypress } from "../nav.ts";
 import { colors, selectTheme } from "../theme.ts";
 
 const ADD = "__add__";
+const SESSION = "__session__";
 const QUIT = "__quit__";
 
 function connectionOptions(ctx: AppContext): SelectOption[] {
@@ -23,12 +24,22 @@ function connectionOptions(ctx: AppContext): SelectOption[] {
     value: c.name,
   }));
 
+  const activityCount = ctx.sessionLog.events.length;
+
   return [
     ...connections,
     {
       name: "Add connection",
       description: "Create a new SurrealDB connection",
       value: ADD,
+    },
+    {
+      name: "Session activity",
+      description:
+        activityCount === 0
+          ? "No actions yet this session"
+          : `${activityCount} event${activityCount === 1 ? "" : "s"} this session`,
+      value: SESSION,
     },
     {
       name: "Quit",
@@ -39,8 +50,7 @@ function connectionOptions(ctx: AppContext): SelectOption[] {
 }
 
 function quit(ctx: AppContext): void {
-  ctx.renderer.destroy();
-  process.exit(0);
+  ctx.exitApp(0);
 }
 
 export function mountConnectionsScreen(ctx: AppContext): void {
@@ -92,8 +102,16 @@ export function mountConnectionsScreen(ctx: AppContext): void {
         return;
       }
 
+      if (option.value === SESSION) {
+        unsubscribe();
+        ctx.showSessionLog();
+        return;
+      }
+
       unsubscribe();
-      ctx.showConnection(String(option.value));
+      const name = String(option.value);
+      ctx.sessionLog.add({ kind: "opened_connection", name });
+      ctx.showConnection(name);
     },
   );
 

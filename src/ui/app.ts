@@ -6,17 +6,33 @@ import { mountConnectionsScreen } from "./screens/connections.ts";
 import { mountCreateConnectionScreen } from "./screens/create-connection.ts";
 import { mountEditConnectionScreen } from "./screens/edit-connection.ts";
 import { mountMigrationManagerScreen } from "./screens/migration-manager.ts";
+import { mountSessionLogScreen } from "./screens/session-log.ts";
+import { createSessionLog, printSessionSummary } from "./session-log.ts";
 import { colors } from "./theme.ts";
 
 export async function startApp(initialConfig: Config): Promise<void> {
   let config = initialConfig;
+  const sessionLog = createSessionLog();
+  let exiting = false;
 
   const renderer = await createCliRenderer({
-    exitOnCtrlC: true,
+    exitOnCtrlC: false,
     targetFps: 30,
   });
 
   renderer.setBackgroundColor(colors.obsidian);
+
+  const exitApp = (code = 0) => {
+    if (exiting) return;
+    exiting = true;
+    try {
+      renderer.destroy();
+    } catch {
+      // ignore destroy errors on the way out
+    }
+    printSessionSummary(sessionLog);
+    process.exit(code);
+  };
 
   const ctx: AppContext = {
     renderer,
@@ -24,6 +40,8 @@ export async function startApp(initialConfig: Config): Promise<void> {
     setConfig: (next) => {
       config = next;
     },
+    sessionLog,
+    exitApp,
     showConnections: () => {
       clearScreen(renderer);
       mountConnectionsScreen(ctx);
@@ -44,7 +62,15 @@ export async function startApp(initialConfig: Config): Promise<void> {
       clearScreen(renderer);
       mountMigrationManagerScreen(ctx, name, flash);
     },
+    showSessionLog: () => {
+      clearScreen(renderer);
+      mountSessionLogScreen(ctx);
+    },
   };
+
+  const onSignal = () => exitApp(0);
+  process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
 
   ctx.showConnections();
   renderer.start();

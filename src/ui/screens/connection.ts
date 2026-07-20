@@ -366,6 +366,13 @@ export function mountConnectionScreen(
     clearOverlay();
     setActionStatus("Migrating…", "muted");
     const result = await migrateUp(ctx.getConfig(), connection);
+    if (result.ok && result.processed.length > 0) {
+      ctx.sessionLog.add({
+        kind: "migrated",
+        connection: connection.name,
+        ids: result.processed,
+      });
+    }
     remount(
       formatRunResult("Migrated", result, "No pending migrations."),
     );
@@ -380,6 +387,13 @@ export function mountConnectionScreen(
       scope === "batch"
         ? await rollbackBatch(ctx.getConfig(), connection)
         : await rollbackAll(ctx.getConfig(), connection);
+    if (result.ok && result.processed.length > 0) {
+      ctx.sessionLog.add({
+        kind: "rolled_back",
+        connection: connection.name,
+        ids: result.processed,
+      });
+    }
     remount(
       formatRunResult("Rolled back", result, "Nothing to roll back."),
     );
@@ -444,10 +458,18 @@ export function mountConnectionScreen(
         setActionStatus(result.error, "error");
         return;
       }
-      const relative = result.files
-        .map((file) => path.relative(process.cwd(), file))
-        .join(", ");
-      remount({ message: `Created: ${relative}`, kind: "success" });
+      const relative = result.files.map((file) =>
+        path.relative(process.cwd(), file),
+      );
+      ctx.sessionLog.add({
+        kind: "created_migration",
+        connection: connection.name,
+        files: relative,
+      });
+      remount({
+        message: `Created: ${relative.join(", ")}`,
+        kind: "success",
+      });
     } catch (err) {
       remount({
         message: err instanceof Error ? err.message : String(err),

@@ -114,15 +114,23 @@ export function mountConnectionScreen(
     id: "connection-info",
     width: "100%",
     flexShrink: 0,
-    flexDirection: "column",
-    gap: 1,
-    padding: 1,
+    flexDirection: "row",
     border: true,
     borderStyle: "rounded",
     borderColor: colors.purple,
     backgroundColor: colors.lavender,
     title: isDefault ? `${connection.name} (default)` : connection.name,
     titleColor: colors.pink,
+  });
+
+  const detailsPane = new BoxRenderable(renderer, {
+    id: "connection-details-pane",
+    flexGrow: 1,
+    flexShrink: 1,
+    flexDirection: "column",
+    padding: 1,
+    gap: 0,
+    backgroundColor: colors.lavender,
   });
 
   const details = new TextRenderable(renderer, {
@@ -135,6 +143,23 @@ export function mountConnectionScreen(
     flexShrink: 0,
   });
 
+  detailsPane.add(details);
+
+  const statusPane = new BoxRenderable(renderer, {
+    id: "connection-status-pane",
+    flexGrow: 1,
+    flexShrink: 1,
+    flexDirection: "column",
+    padding: 1,
+    gap: 0,
+    border: ["left"],
+    borderStyle: "single",
+    borderColor: colors.purple,
+    backgroundColor: colors.lavender,
+    title: "Migrations",
+    titleColor: colors.pink,
+  });
+
   const statusText = new TextRenderable(renderer, {
     id: "connection-status-overview",
     content: "Loading status…",
@@ -142,8 +167,9 @@ export function mountConnectionScreen(
     flexShrink: 0,
   });
 
-  infoBox.add(details);
-  infoBox.add(statusText);
+  statusPane.add(statusText);
+  infoBox.add(detailsPane);
+  infoBox.add(statusPane);
 
   const actionStatus = new TextRenderable(renderer, {
     id: "connection-action-status",

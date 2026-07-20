@@ -97,11 +97,21 @@ function formatRunResult(
         : "";
     return { message: `${result.error}${stopped}`, kind: "error" };
   }
+  const skippedNote =
+    result.skipped.length > 0
+      ? ` Skipped (missing source): ${result.skipped.join(", ")}`
+      : "";
   if (result.processed.length === 0) {
+    if (result.skipped.length > 0) {
+      return {
+        message: `Could not roll back (missing source): ${result.skipped.join(", ")}`,
+        kind: "muted",
+      };
+    }
     return { message: emptyMessage, kind: "muted" };
   }
   return {
-    message: `${label} (${result.processed.length}): ${result.processed.join(", ")}`,
+    message: `${label} (${result.processed.length}): ${result.processed.join(", ")}${skippedNote}`,
     kind: "success",
   };
 }
@@ -374,6 +384,12 @@ export function mountConnectionScreen(
         connection: connection.name,
         ids: result.processed,
       });
+    } else if (!result.ok) {
+      ctx.sessionLog.add({
+        kind: "failed",
+        action: "migrate",
+        error: result.error,
+      });
     }
     remount(
       formatRunResult("Migrated", result, "No pending migrations."),
@@ -394,6 +410,19 @@ export function mountConnectionScreen(
         kind: "rolled_back",
         connection: connection.name,
         ids: result.processed,
+        skipped: result.skipped,
+      });
+    } else if (result.ok && result.skipped.length > 0) {
+      ctx.sessionLog.add({
+        kind: "failed",
+        action: "roll back",
+        error: `Missing local source for ${result.skipped.join(", ")}`,
+      });
+    } else if (!result.ok) {
+      ctx.sessionLog.add({
+        kind: "failed",
+        action: "roll back",
+        error: result.error,
       });
     }
     remount(
@@ -458,6 +487,11 @@ export function mountConnectionScreen(
       if (!result.ok) {
         busy = false;
         setActionStatus(result.error, "error");
+        ctx.sessionLog.add({
+          kind: "failed",
+          action: "create migration",
+          error: result.error,
+        });
         return;
       }
       const relative = result.files.map((file) =>
@@ -473,8 +507,14 @@ export function mountConnectionScreen(
         kind: "success",
       });
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      ctx.sessionLog.add({
+        kind: "failed",
+        action: "create migration",
+        error: message,
+      });
       remount({
-        message: err instanceof Error ? err.message : String(err),
+        message,
         kind: "error",
       });
     }

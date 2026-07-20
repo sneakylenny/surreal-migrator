@@ -19,12 +19,20 @@ export type SessionEvent =
       at: number;
       connection: string;
       ids: string[];
+      skipped?: string[];
     }
   | {
       kind: "deleted_record";
       at: number;
       connection: string;
       id: string;
+    }
+  | {
+      kind: "failed";
+      at: number;
+      /** Short verb phrase, e.g. "roll back" / "migrate". */
+      action: string;
+      error: string;
     };
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
@@ -63,11 +71,29 @@ export function formatSessionEvent(event: SessionEvent): string {
         : `Created migration files ${formatIdList(event.files)}`;
     case "migrated":
       return `Migrated ${formatIdList(event.ids)}`;
-    case "rolled_back":
-      return `Rolled back ${formatIdList(event.ids)}`;
+    case "rolled_back": {
+      const base = `Rolled back ${formatIdList(event.ids)}`;
+      if (event.skipped && event.skipped.length > 0) {
+        return `${base} (skipped missing source: ${formatIdList(event.skipped)})`;
+      }
+      return base;
+    }
     case "deleted_record":
       return `Deleted migration record ${event.id}`;
+    case "failed":
+      return `Tried to ${event.action} but failed:\n  ${event.error}`;
   }
+}
+
+/** Lines for one event (failed actions span two lines). */
+export function formatSessionEventLines(event: SessionEvent): string[] {
+  if (event.kind === "failed") {
+    return [
+      `• Tried to ${event.action} but failed:`,
+      `  ${event.error}`,
+    ];
+  }
+  return [`• ${formatSessionEvent(event)}`];
 }
 
 /** Multi-line summary for the session activity screen / exit printout. */
@@ -82,7 +108,7 @@ export function formatSessionSummary(events: SessionEvent[]): string[] {
   ];
 
   for (const event of events) {
-    lines.push(`• ${formatSessionEvent(event)}`);
+    lines.push(...formatSessionEventLines(event));
   }
 
   return lines;

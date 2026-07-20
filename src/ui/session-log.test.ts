@@ -64,4 +64,22 @@ describe("formatSessionSummary", () => {
       "• Migrated a and b",
     ]);
   });
+
+  test("formats failed actions with error detail", () => {
+    expect(
+      formatSessionSummary([
+        {
+          kind: "failed",
+          at: 0,
+          action: "roll back",
+          error: "Missing local source for x",
+        },
+      ]),
+    ).toEqual([
+      "Session activity (1 event)",
+      "",
+      "• Tried to roll back but failed:",
+      "  Missing local source for x",
+    ]);
+  });
 });

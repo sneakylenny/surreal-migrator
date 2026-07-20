@@ -167,7 +167,10 @@ describe("migrate + rollback (surql) with embedded mem://", () => {
         expect(second).toEqual(["20260101000003_create-tag"]);
 
         const reverted = await revertLatestBatch(db, fixture);
-        expect(reverted).toEqual(["20260101000003_create-tag"]);
+        expect(reverted).toEqual({
+          processed: ["20260101000003_create-tag"],
+          skipped: [],
+        });
 
         const applied = await fetchAppliedMigrationsOn(db, "migration");
         expect(applied.map((m) => m.id)).toEqual([
@@ -191,10 +194,13 @@ describe("migrate + rollback (surql) with embedded mem://", () => {
       async (db) => {
         await applyPendingMigrations(db, fixture);
         const reverted = await revertAllApplied(db, fixture);
-        expect(reverted).toEqual([
-          "20260101000002_create-item",
-          "20260101000001_create-widget",
-        ]);
+        expect(reverted).toEqual({
+          processed: [
+            "20260101000002_create-item",
+            "20260101000001_create-widget",
+          ],
+          skipped: [],
+        });
 
         const applied = await fetchAppliedMigrationsOn(db, "migration");
         expect(applied).toEqual([]);
@@ -395,7 +401,10 @@ describe("single migration manager ops (surql)", () => {
           fixture,
           "20260101000001_create-widget",
         );
-        expect(reverted).toEqual(["20260101000001_create-widget"]);
+        expect(reverted).toEqual({
+          processed: ["20260101000001_create-widget"],
+          skipped: [],
+        });
 
         const applied = await fetchAppliedMigrationsOn(db, "migration");
         expect(applied.map((m) => m.id)).toEqual([
@@ -420,7 +429,7 @@ describe("single migration manager ops (surql)", () => {
           fixture,
           "20260101000001_create-widget",
         );
-        expect(reverted).toEqual([]);
+        expect(reverted).toEqual({ processed: [], skipped: [] });
       },
       { migrationTable: "migration" },
     );
@@ -468,6 +477,34 @@ describe("single migration manager ops (surql)", () => {
     );
   });
 
+  test("revertAllApplied skips migrations with missing down source", async () => {
+    const fixture = await createFixture("surql");
+
+    await withMemDb(
+      async (db) => {
+        await applyPendingMigrations(db, fixture);
+        await rm(
+          path.join(
+            fixture.cwd,
+            fixture.migrationsDir,
+            fixture.connectionName,
+            "20260101000001_create-widget.down.surql",
+          ),
+        );
+
+        const outcome = await revertAllApplied(db, fixture);
+        expect(outcome.processed).toEqual(["20260101000002_create-item"]);
+        expect(outcome.skipped).toEqual(["20260101000001_create-widget"]);
+
+        const applied = await fetchAppliedMigrationsOn(db, "migration");
+        expect(applied.map((m) => m.id)).toEqual([
+          "20260101000001_create-widget",
+        ]);
+      },
+      { migrationTable: "migration" },
+    );
+  });
+
   test("revertMigrationsAfter leaves selected applied", async () => {
     const fixture = await createFixture("surql");
 
@@ -500,10 +537,13 @@ describe("single migration manager ops (surql)", () => {
           fixture,
           "20260101000001_create-widget",
         );
-        expect(reverted).toEqual([
-          "20260101000003_create-tag",
-          "20260101000002_create-item",
-        ]);
+        expect(reverted).toEqual({
+          processed: [
+            "20260101000003_create-tag",
+            "20260101000002_create-item",
+          ],
+          skipped: [],
+        });
 
         const applied = await fetchAppliedMigrationsOn(db, "migration");
         expect(applied.map((m) => m.id)).toEqual([

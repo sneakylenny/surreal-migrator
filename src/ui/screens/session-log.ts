@@ -44,15 +44,19 @@ export function mountSessionLogScreen(ctx: AppContext): void {
   const lines = formatSessionSummary(ctx.sessionLog.events);
   for (const [index, line] of lines.entries()) {
     const isTitle = index === 0 && ctx.sessionLog.events.length > 0;
+    const isBullet = line.startsWith("•");
+    const isErrorDetail = line.startsWith("  ");
     scrollBox.add(
       new TextRenderable(renderer, {
         id: `session-log-line-${index}`,
         content: line.length === 0 ? " " : line,
         fg: isTitle
           ? colors.pink
-          : line.startsWith("•")
-            ? colors.moonlit
-            : colors.muted,
+          : isErrorDetail
+            ? "#ef4444"
+            : isBullet
+              ? colors.moonlit
+              : colors.muted,
         flexShrink: 0,
       }),
     );

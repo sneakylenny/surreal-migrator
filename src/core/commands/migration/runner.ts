@@ -18,9 +18,15 @@ import { assertFormatSupported } from "../../flags.ts";
 import { connectionMigrationsDir } from "./create.ts";
 import { listLocalMigrationIds } from "./status.ts";
 
+export type RunOutcome = {
+  processed: string[];
+  /** Applied ids skipped because local up/down source files are missing. */
+  skipped: string[];
+};
+
 export type RunResult =
-  | { ok: true; processed: string[] }
-  | { ok: false; error: string; processed: string[] };
+  | { ok: true; processed: string[]; skipped: string[] }
+  | { ok: false; error: string; processed: string[]; skipped: string[] };
 
 export type MigrationRunOptions = {
   migrationsDir: string;
@@ -111,6 +117,83 @@ async function runDown(
   await mod.down(db);
 }
 
+/**
+ * Fail fast when local migration files are missing for the given ids.
+ * Used before apply so ENOENT is not hit mid-batch.
+ */
+export async function assertMigrationSources(
+  options: MigrationRunOptions,
+  ids: string[],
+  direction: "up" | "down",
+): Promise<void> {
+  if (ids.length === 0) return;
+  const { dir } = resolveRunPaths(options);
+  const missing: string[] = [];
+
+  for (const id of ids) {
+    const files = migrationFilePaths(options.format, dir, id);
+    const filePath = direction === "up" ? files.up : files.down;
+    if (!(await Bun.file(filePath).exists())) {
+      missing.push(id);
+    }
+  }
+
+  if (missing.length === 0) return;
+
+  const label = missing.length === 1 ? missing[0]! : missing.join(", ");
+  throw new Error(
+    `Missing local source for ${label}. Restore the files or delete the migration record(s) in the migration manager.`,
+  );
+}
+
+/** Split ids into those with local source files and those without. */
+export async function partitionMigrationSources(
+  options: MigrationRunOptions,
+  ids: string[],
+  direction: "up" | "down",
+): Promise<{ ready: string[]; skipped: string[] }> {
+  if (ids.length === 0) return { ready: [], skipped: [] };
+  const { dir } = resolveRunPaths(options);
+  const ready: string[] = [];
+  const skipped: string[] = [];
+
+  for (const id of ids) {
+    const files = migrationFilePaths(options.format, dir, id);
+    const filePath = direction === "up" ? files.up : files.down;
+    if (await Bun.file(filePath).exists()) {
+      ready.push(id);
+    } else {
+      skipped.push(id);
+    }
+  }
+
+  return { ready, skipped };
+}
+
+async function revertMigrations(
+  db: Surreal,
+  options: MigrationRunOptions,
+  migrations: AppliedMigration[],
+): Promise<RunOutcome> {
+  const { dir } = resolveRunPaths(options);
+  const { ready, skipped } = await partitionMigrationSources(
+    options,
+    migrations.map((m) => m.id),
+    "down",
+  );
+  const readySet = new Set(ready);
+  const processed: string[] = [];
+
+  for (const migration of migrations) {
+    if (!readySet.has(migration.id)) continue;
+    await runDown(db, options.format, dir, migration.id);
+    await markMigrationReverted(db, options.migrationTable, migration.id);
+    processed.push(migration.id);
+  }
+
+  return { processed, skipped };
+}
+
 export function nextBatchNumber(applied: AppliedMigration[]): number {
   if (applied.length === 0) return 1;
   return Math.max(...applied.map((m) => m.batchNumber)) + 1;
@@ -156,6 +239,8 @@ export async function applyPendingMigrations(
   const pending = local.filter((id) => !appliedSet.has(id));
   if (pending.length === 0) return [];
 
+  await assertMigrationSources(options, pending, "up");
+
   const batchNumber = nextBatchNumber(applied);
   const processed: string[] = [];
 
@@ -191,6 +276,8 @@ export async function applyPendingThrough(
   );
   if (pending.length === 0) return [];
 
+  await assertMigrationSources(options, pending, "up");
+
   const batchNumber = nextBatchNumber(applied);
   const processed: string[] = [];
 
@@ -213,6 +300,8 @@ export async function applyMigration(
   const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
   if (applied.some((m) => m.id === id)) return [];
 
+  await assertMigrationSources(options, [id], "up");
+
   const batchNumber = nextBatchNumber(applied);
   await runUp(db, options.format, dir, id);
   await markMigrationApplied(db, options.migrationTable, id, batchNumber);
@@ -223,41 +312,26 @@ export async function applyMigration(
 export async function revertLatestBatch(
   db: Surreal,
   options: MigrationRunOptions,
-): Promise<string[]> {
-  const { dir } = resolveRunPaths(options);
+): Promise<RunOutcome> {
   const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
-  if (applied.length === 0) return [];
+  if (applied.length === 0) return { processed: [], skipped: [] };
 
   const latestBatch = Math.max(...applied.map((m) => m.batchNumber));
   const batch = applied
     .filter((m) => m.batchNumber === latestBatch)
     .sort(sortForRollback);
 
-  const processed: string[] = [];
-  for (const migration of batch) {
-    await runDown(db, options.format, dir, migration.id);
-    await markMigrationReverted(db, options.migrationTable, migration.id);
-    processed.push(migration.id);
-  }
-  return processed;
+  return revertMigrations(db, options, batch);
 }
 
 /** Roll back every applied migration on an open DB session. */
 export async function revertAllApplied(
   db: Surreal,
   options: MigrationRunOptions,
-): Promise<string[]> {
-  const { dir } = resolveRunPaths(options);
+): Promise<RunOutcome> {
   const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
   const ordered = [...applied].sort(sortForRollback);
-
-  const processed: string[] = [];
-  for (const migration of ordered) {
-    await runDown(db, options.format, dir, migration.id);
-    await markMigrationReverted(db, options.migrationTable, migration.id);
-    processed.push(migration.id);
-  }
-  return processed;
+  return revertMigrations(db, options, ordered);
 }
 
 /** Roll back a single migration by id (allows holes). */
@@ -265,14 +339,25 @@ export async function revertMigration(
   db: Surreal,
   options: MigrationRunOptions,
   id: string,
-): Promise<string[]> {
+): Promise<RunOutcome> {
   const { dir } = resolveRunPaths(options);
   const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
-  if (!applied.some((m) => m.id === id)) return [];
+  if (!applied.some((m) => m.id === id)) {
+    return { processed: [], skipped: [] };
+  }
+
+  const { ready, skipped } = await partitionMigrationSources(
+    options,
+    [id],
+    "down",
+  );
+  if (ready.length === 0) {
+    return { processed: [], skipped };
+  }
 
   await runDown(db, options.format, dir, id);
   await markMigrationReverted(db, options.migrationTable, id);
-  return [id];
+  return { processed: [id], skipped: [] };
 }
 
 /**
@@ -299,37 +384,42 @@ export async function revertMigrationsAfter(
   db: Surreal,
   options: MigrationRunOptions,
   id: string,
-): Promise<string[]> {
-  const { dir } = resolveRunPaths(options);
+): Promise<RunOutcome> {
   const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
   const after = applied
     .filter((m) => m.id.localeCompare(id) > 0)
     .sort(sortForRollback);
 
-  const processed: string[] = [];
-  for (const migration of after) {
-    await runDown(db, options.format, dir, migration.id);
-    await markMigrationReverted(db, options.migrationTable, migration.id);
-    processed.push(migration.id);
+  return revertMigrations(db, options, after);
+}
+
+function normalizeOutcome(
+  result: RunOutcome | string[],
+): RunOutcome {
+  if (Array.isArray(result)) {
+    return { processed: result, skipped: [] };
   }
-  return processed;
+  return result;
 }
 
 export async function runWithConnection(
   config: Config,
   connection: Connection,
   cwd: string,
-  run: (db: Surreal, options: MigrationRunOptions) => Promise<string[]>,
+  run: (
+    db: Surreal,
+    options: MigrationRunOptions,
+  ) => Promise<RunOutcome | string[]>,
 ): Promise<RunResult> {
   const format = resolveMigrationFormat(config, connection);
   const unsupported = assertFormatSupported(format);
   if (unsupported) {
-    return { ok: false, error: unsupported, processed: [] };
+    return { ok: false, error: unsupported, processed: [], skipped: [] };
   }
 
   const credentials = requireCredentials(connection.name);
   if ("error" in credentials) {
-    return { ok: false, error: credentials.error, processed: [] };
+    return { ok: false, error: credentials.error, processed: [], skipped: [] };
   }
 
   const options: MigrationRunOptions = {
@@ -340,13 +430,18 @@ export async function runWithConnection(
     cwd,
   };
 
-  const processed: string[] = [];
+  let outcome: RunOutcome = { processed: [], skipped: [] };
   const result = await withConnection(connection, credentials, async (db) => {
-    processed.push(...(await run(db, options)));
+    outcome = normalizeOutcome(await run(db, options));
   });
 
   if (!result.ok) {
-    return { ok: false, error: result.error, processed };
+    return {
+      ok: false,
+      error: result.error,
+      processed: outcome.processed,
+      skipped: outcome.skipped,
+    };
   }
-  return { ok: true, processed };
+  return { ok: true, ...outcome };
 }

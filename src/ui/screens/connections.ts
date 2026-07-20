@@ -3,19 +3,17 @@ import {
   SelectRenderable,
   SelectRenderableEvents,
   TextRenderable,
-  type CliRenderer,
   type SelectOption,
 } from "@opentui/core";
-import {
-  connectionsForMenu,
-  type Config,
-} from "../../core/config.ts";
+import { connectionsForMenu } from "../../core/config.ts";
+import type { AppContext } from "../nav.ts";
 import { colors, selectTheme } from "../theme.ts";
 
 const ADD = "__add__";
 const QUIT = "__quit__";
 
-function connectionOptions(config: Config): SelectOption[] {
+function connectionOptions(ctx: AppContext): SelectOption[] {
+  const config = ctx.getConfig();
   const connections = connectionsForMenu(config).map((c) => ({
     name:
       config.defaultConnection === c.name ? `${c.name} (default)` : c.name,
@@ -38,10 +36,10 @@ function connectionOptions(config: Config): SelectOption[] {
   ];
 }
 
-export function mountConnectionsScreen(
-  renderer: CliRenderer,
-  config: Config,
-): void {
+export function mountConnectionsScreen(ctx: AppContext): void {
+  const { renderer } = ctx;
+  const config = ctx.getConfig();
+
   const root = new BoxRenderable(renderer, {
     id: "connections-root",
     width: "100%",
@@ -76,7 +74,7 @@ export function mountConnectionsScreen(
     id: "connections-select",
     width: "100%",
     flexGrow: 1,
-    options: connectionOptions(config),
+    options: connectionOptions(ctx),
     showDescription: true,
     showScrollIndicator: true,
     wrapSelection: true,
@@ -92,10 +90,12 @@ export function mountConnectionsScreen(
         return;
       }
 
-      status.content =
-        option.value === ADD
-          ? "Add connection — coming soon"
-          : `Connection "${String(option.value)}" — coming soon`;
+      if (option.value === ADD) {
+        ctx.showCreateConnection();
+        return;
+      }
+
+      status.content = `Connection "${String(option.value)}" — coming soon`;
     },
   );
 

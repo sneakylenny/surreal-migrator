@@ -1,19 +1,27 @@
 # Surreal Migrator
 
-An interactive CLI for managing [SurrealDB](https://surrealdb.com) schema and data migrations. It walks you through connections, creating migrations, applying them, and rolling them back — all from a terminal menu.
+**SurrealDB migrator** / **Surreal migration tool** — an interactive CLI for managing SurrealDB schema and data migrations.
 
-> **Note:** The tool is menu-first today. Direct commands (for example `surreal-migrator migrate` or `surreal-migrator status`) are planned for a later release so you can use it in scripts and CI.
+![Surreal Migrator Screenshot](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-17%20at%2014-18-16.png)
+
+A terminal-based CLI for [SurrealDB](https://surrealdb.com) migrations, built on [Bun](https://bun.sh) with [clack](https://www.npmjs.com/package/@clack/prompts) for interactive prompts and the [SurrealDB JavaScript SDK](https://surrealdb.com/docs/reference/javascript) for database operations.
+
+> **Bun only — not Node.js.** The npm package and TypeScript migrations require [Bun](https://bun.sh). This project does not run under Node (`node`, `npm`, `npx`, `pnpm`, or `yarn`). Node users who only need SurQL migrations can use a [prebuilt binary](https://github.com/sneakylenny/surreal-migrator/releases) instead.
+
+> **Note:** The tool is currently menu-first. Direct commands (for example `surreal-migrator migrate`, `surreal-migrator migrate down 20260717100431_add-users` or `surreal-migrator status`) are planned for a later release so you can use it in scripts and CI.
+
+> **AI-assisted.** This package was built with the help of AI.
 
 ## Requirements
 
 - A reachable SurrealDB instance
 - Either:
-  - [Bun](https://bun.sh) (development / TypeScript migrations), or
-  - A platform binary (SurQL migrations only — no Bun install needed)
+  - [Bun](https://bun.sh) **≥ 1.0** — required for the npm package and TypeScript migrations (**not compatible with Node.js**), or
+  - A platform binary from GitHub Releases (SurQL migrations only — no Bun or Node install needed)
 
 ## Getting started
 
-With Bun:
+With Bun (do not use `npm install -g`):
 
 ```bash
 bun add -g surreal-migrator
@@ -92,6 +100,6 @@ Omitting `migrationFormat` means SurQL. Set `"migrationFormat": "ts"` on a conne
 
 For a diagram of the interactive flow, see [docs/flow.md](docs/flow.md).
 
-Compiled binaries for macOS, Linux, and Windows are also available from GitHub Releases (SurQL-only). The npm package requires Bun and includes TypeScript migration support.
+Compiled binaries for macOS, Linux, and Windows are also available from [GitHub Releases](https://github.com/sneakylenny/surreal-migrator/releases) (SurQL-only). The npm package requires Bun (not Node.js) and includes TypeScript migration support.
 
 Releases are driven by [Changesets](https://github.com/changesets/changesets): add a changeset in your PR (`bun run changeset`), merge the Version Packages PR that CI opens, and npm + binaries publish automatically.

@@ -1,5 +1,4 @@
 import {
-  ASCIIFontRenderable,
   BoxRenderable,
   SelectRenderable,
   SelectRenderableEvents,
@@ -7,6 +6,7 @@ import {
   type SelectOption,
 } from "@opentui/core";
 import { connectionsForMenu } from "../../core/config.ts";
+import { APP_TITLE, createScreenShell } from "../layout.ts";
 import type { AppContext } from "../nav.ts";
 import { onKeypress } from "../nav.ts";
 import { colors, selectTheme } from "../theme.ts";
@@ -32,7 +32,7 @@ function connectionOptions(ctx: AppContext): SelectOption[] {
     },
     {
       name: "Quit",
-      description: "Exit Surreal Migrator",
+      description: `Exit ${APP_TITLE}`,
       value: QUIT,
     },
   ];
@@ -47,24 +47,7 @@ export function mountConnectionsScreen(ctx: AppContext): void {
   const { renderer } = ctx;
   const config = ctx.getConfig();
 
-  const root = new BoxRenderable(renderer, {
-    id: "connections-root",
-    width: "100%",
-    height: "100%",
-    flexDirection: "column",
-    padding: 2,
-    gap: 1,
-    backgroundColor: colors.obsidian,
-  });
-
-  const title = new ASCIIFontRenderable(renderer, {
-    id: "connections-title",
-    text: "Surreal Migrator",
-    font: "tiny",
-    color: colors.pink,
-    backgroundColor: colors.obsidian,
-    selectable: false,
-  });
+  const { root, content } = createScreenShell(renderer, ["connections"], "connections");
 
   const subtitle = new TextRenderable(renderer, {
     id: "connections-subtitle",
@@ -114,9 +97,8 @@ export function mountConnectionsScreen(ctx: AppContext): void {
     },
   );
 
-  root.add(title);
-  root.add(subtitle);
-  root.add(select);
+  content.add(subtitle);
+  content.add(select);
   renderer.root.add(root);
   select.focus();
 }

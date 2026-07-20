@@ -24,6 +24,7 @@ import {
 } from "../../core/flags.ts";
 import type { AppContext } from "../nav.ts";
 import { onKeypress } from "../nav.ts";
+import { createScreenShell } from "../layout.ts";
 import { colors, selectTheme } from "../theme.ts";
 
 type Phase = "form" | "retry" | "default" | "busy";
@@ -43,27 +44,16 @@ export function mountCreateConnectionScreen(ctx: AppContext): void {
   let focusIndex = 0;
   let unsubscribe: (() => void) | null = null;
 
-  const root = new BoxRenderable(renderer, {
-    id: "create-connection-root",
-    width: "100%",
-    height: "100%",
-    flexDirection: "column",
-    padding: 2,
-    gap: 1,
-    backgroundColor: colors.obsidian,
-  });
+  const { root, content } = createScreenShell(
+    renderer,
+    ["connections", "add"],
+    "create-connection",
+  );
 
   const hints = new TextRenderable(renderer, {
     id: "create-connection-hints",
     content: "Tab focus · Enter next/submit · Esc cancel",
     fg: colors.muted,
-    flexShrink: 0,
-  });
-
-  const title = new TextRenderable(renderer, {
-    id: "create-connection-title",
-    content: "Add connection",
-    fg: colors.pink,
     flexShrink: 0,
   });
 
@@ -205,11 +195,10 @@ export function mountCreateConnectionScreen(ctx: AppContext): void {
     gap: 1,
   });
 
-  root.add(title);
-  root.add(scrollBox);
-  root.add(status);
-  root.add(overlayBox);
-  root.add(hints);
+  content.add(scrollBox);
+  content.add(status);
+  content.add(overlayBox);
+  content.add(hints);
   renderer.root.add(root);
 
   const focusables: Renderable[] = [

@@ -1,5 +1,4 @@
 import {
-  ASCIIFontRenderable,
   BoxRenderable,
   SelectRenderable,
   SelectRenderableEvents,
@@ -17,6 +16,7 @@ import {
   getMigrationStatus,
   type MigrationStatus,
 } from "../../core/commands/migration/status.ts";
+import { createScreenShell } from "../layout.ts";
 import type { AppContext } from "../nav.ts";
 import { onKeypress } from "../nav.ts";
 import { colors, selectTheme } from "../theme.ts";
@@ -91,24 +91,11 @@ export function mountConnectionScreen(
   const isDefault = config.defaultConnection === connection.name;
   const format = resolveMigrationFormat(config, connection);
 
-  const root = new BoxRenderable(renderer, {
-    id: "connection-root",
-    width: "100%",
-    height: "100%",
-    flexDirection: "column",
-    padding: 2,
-    gap: 1,
-    backgroundColor: colors.obsidian,
-  });
-
-  const title = new ASCIIFontRenderable(renderer, {
-    id: "connection-title",
-    text: "Surreal Migrator",
-    font: "tiny",
-    color: colors.pink,
-    backgroundColor: colors.obsidian,
-    selectable: false,
-  });
+  const { root, content } = createScreenShell(
+    renderer,
+    ["connections", connection.name],
+    "connection",
+  );
 
   const infoBox = new BoxRenderable(renderer, {
     id: "connection-info",
@@ -230,11 +217,10 @@ export function mountConnectionScreen(
     },
   );
 
-  root.add(title);
-  root.add(infoBox);
-  root.add(select);
-  root.add(actionStatus);
-  root.add(hints);
+  content.add(infoBox);
+  content.add(select);
+  content.add(actionStatus);
+  content.add(hints);
   renderer.root.add(root);
   select.focus();
 

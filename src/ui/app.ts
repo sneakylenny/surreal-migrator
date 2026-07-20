@@ -5,6 +5,7 @@ import { mountConnectionScreen } from "./screens/connection.ts";
 import { mountConnectionsScreen } from "./screens/connections.ts";
 import { mountCreateConnectionScreen } from "./screens/create-connection.ts";
 import { mountEditConnectionScreen } from "./screens/edit-connection.ts";
+import { mountMigrationManagerScreen } from "./screens/migration-manager.ts";
 import { colors } from "./theme.ts";
 
 export async function startApp(initialConfig: Config): Promise<void> {
@@ -38,6 +39,10 @@ export async function startApp(initialConfig: Config): Promise<void> {
     showEditConnection: (name) => {
       clearScreen(renderer);
       mountEditConnectionScreen(ctx, name);
+    },
+    showMigrationManager: (name, flash) => {
+      clearScreen(renderer);
+      mountMigrationManagerScreen(ctx, name, flash);
     },
   };
 

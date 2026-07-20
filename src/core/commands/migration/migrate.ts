@@ -2,6 +2,7 @@ import type { Config, Connection } from "../../config.ts";
 import {
   applyMigration,
   applyPendingMigrations,
+  applyPendingThrough,
   runWithConnection,
   type RunResult,
 } from "./runner.ts";
@@ -24,5 +25,16 @@ export async function migrateOne(
 ): Promise<RunResult> {
   return runWithConnection(config, connection, cwd, (db, options) =>
     applyMigration(db, options, id),
+  );
+}
+
+export async function migrateThrough(
+  config: Config,
+  connection: Connection,
+  id: string,
+  cwd = process.cwd(),
+): Promise<RunResult> {
+  return runWithConnection(config, connection, cwd, (db, options) =>
+    applyPendingThrough(db, options, id),
   );
 }

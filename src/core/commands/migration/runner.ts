@@ -168,6 +168,41 @@ export async function applyPendingMigrations(
   return processed;
 }
 
+/**
+ * Apply pending migrations with id <= selected (lexical), as one batch.
+ * Includes the selected id when it is still pending.
+ */
+export async function applyPendingThrough(
+  db: Surreal,
+  options: MigrationRunOptions,
+  throughId: string,
+): Promise<string[]> {
+  const { cwd, dir } = resolveRunPaths(options);
+  const local = await listLocalMigrationIds(
+    options.migrationsDir,
+    options.connectionName,
+    options.format,
+    cwd,
+  );
+  const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
+  const appliedSet = new Set(applied.map((m) => m.id));
+  const pending = local.filter(
+    (id) => !appliedSet.has(id) && id.localeCompare(throughId) <= 0,
+  );
+  if (pending.length === 0) return [];
+
+  const batchNumber = nextBatchNumber(applied);
+  const processed: string[] = [];
+
+  for (const id of pending) {
+    await runUp(db, options.format, dir, id);
+    await markMigrationApplied(db, options.migrationTable, id, batchNumber);
+    processed.push(id);
+  }
+
+  return processed;
+}
+
 /** Apply a single migration by id (allows out-of-order / holes). */
 export async function applyMigration(
   db: Surreal,

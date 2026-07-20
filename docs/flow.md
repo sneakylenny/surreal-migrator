@@ -30,19 +30,21 @@ flowchart TD
   rollbackMenu -->|all| rollbackAll["Down all applied"]
   rollbackMenu -->|back| connectionMenu
   connectionMenu -->|migration manager| managerList["List local migrations with applied/pending"]
-  managerList -->|select pending| confirmRun["Confirm run this migration"]
-  confirmRun -->|yes| migrateOne["Apply single migration"]
-  managerList -->|select applied| appliedMenu["Rollback to here / Rollback this"]
-  appliedMenu -->|to here| rollbackAfter["Down migrations after selected"]
+  managerList -->|select pending| pendingMenu["Run this / Migrate to here / Back"]
+  pendingMenu -->|run this| migrateOne["Apply single migration"]
+  pendingMenu -->|migrate to here| migrateThrough["Apply pending through selected"]
+  managerList -->|select applied| appliedMenu["Rollback this / Roll back to here / Back"]
   appliedMenu -->|this| rollbackOne["Down selected migration only"]
+  appliedMenu -->|to here| rollbackAfter["Down migrations after selected"]
   migrateUp --> connectionMenu
   rollbackBatch --> connectionMenu
   rollbackAll --> connectionMenu
   migrateOne --> managerList
+  migrateThrough --> managerList
   rollbackAfter --> managerList
   rollbackOne --> managerList
   managerList -->|back| connectionMenu
-  connectionMenu -->|make default| setDefaultFromMenu[Set defaultConnection]
-  setDefaultFromMenu --> connectionMenu
+  connectionMenu -->|edit connection| editConn[Edit connection form]
+  editConn --> connectionMenu
   connectionMenu -->|back| connectionsMenu
 ```

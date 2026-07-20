@@ -7,6 +7,7 @@ import { withMemDb } from "../../test/mem-db.ts";
 import {
   applyMigration,
   applyPendingMigrations,
+  applyPendingThrough,
   nextBatchNumber,
   revertAllApplied,
   revertLatestBatch,
@@ -231,6 +232,114 @@ describe("migrate + rollback (ts) with embedded mem://", () => {
 });
 
 describe("single migration manager ops (surql)", () => {
+  test("applyPendingThrough applies through selected including it", async () => {
+    const fixture = await createFixture("surql");
+
+    await writeFile(
+      path.join(
+        fixture.cwd,
+        fixture.migrationsDir,
+        fixture.connectionName,
+        "20260101000003_create-tag.up.surql",
+      ),
+      "DEFINE TABLE tag SCHEMALESS;\n",
+    );
+    await writeFile(
+      path.join(
+        fixture.cwd,
+        fixture.migrationsDir,
+        fixture.connectionName,
+        "20260101000003_create-tag.down.surql",
+      ),
+      "REMOVE TABLE IF EXISTS tag;\n",
+    );
+
+    await withMemDb(
+      async (db) => {
+        const processed = await applyPendingThrough(
+          db,
+          fixture,
+          "20260101000002_create-item",
+        );
+        expect(processed).toEqual([
+          "20260101000001_create-widget",
+          "20260101000002_create-item",
+        ]);
+
+        const applied = await fetchAppliedMigrationsOn(db, "migration");
+        expect(applied.map((m) => m.id).sort()).toEqual([
+          "20260101000001_create-widget",
+          "20260101000002_create-item",
+        ]);
+        expect(applied.every((m) => m.batchNumber === applied[0]!.batchNumber)).toBe(
+          true,
+        );
+
+        const tables = await listDbTables(db);
+        expect(tables).toContain("widget");
+        expect(tables).toContain("item");
+        expect(tables).not.toContain("tag");
+      },
+      { migrationTable: "migration" },
+    );
+  });
+
+  test("applyPendingThrough skips already-applied prefix", async () => {
+    const fixture = await createFixture("surql");
+
+    await writeFile(
+      path.join(
+        fixture.cwd,
+        fixture.migrationsDir,
+        fixture.connectionName,
+        "20260101000003_create-tag.up.surql",
+      ),
+      "DEFINE TABLE tag SCHEMALESS;\n",
+    );
+    await writeFile(
+      path.join(
+        fixture.cwd,
+        fixture.migrationsDir,
+        fixture.connectionName,
+        "20260101000003_create-tag.down.surql",
+      ),
+      "REMOVE TABLE IF EXISTS tag;\n",
+    );
+
+    await withMemDb(
+      async (db) => {
+        await applyMigration(db, fixture, "20260101000001_create-widget");
+        const processed = await applyPendingThrough(
+          db,
+          fixture,
+          "20260101000003_create-tag",
+        );
+        expect(processed).toEqual([
+          "20260101000002_create-item",
+          "20260101000003_create-tag",
+        ]);
+      },
+      { migrationTable: "migration" },
+    );
+  });
+
+  test("applyPendingThrough is a no-op when none pending through id", async () => {
+    const fixture = await createFixture("surql");
+
+    await withMemDb(
+      async (db) => {
+        await applyPendingMigrations(db, fixture);
+        const again = await applyPendingThrough(
+          db,
+          fixture,
+          "20260101000002_create-item",
+        );
+        expect(again).toEqual([]);
+      },
+      { migrationTable: "migration" },
+    );
+  });
+
   test("applies one pending while earlier stays pending", async () => {
     const fixture = await createFixture("surql");
 

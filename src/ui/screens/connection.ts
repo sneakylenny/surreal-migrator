@@ -16,6 +16,7 @@ import {
 } from "../../core/commands/migration/rollback.ts";
 import type { RunResult } from "../../core/commands/migration/runner.ts";
 import {
+  formatManagerHint,
   formatPendingHint,
   formatPendingOverview,
   formatRollbackHint,
@@ -48,6 +49,7 @@ function formatLabel(format: "surql" | "ts"): string {
 function actionOptions(status: MigrationStatus | null): SelectOption[] {
   const migrateHint = status ? formatPendingHint(status) : "…";
   const rollbackHint = status ? formatRollbackHint(status) : "…";
+  const managerHint = status ? formatManagerHint(status) : "…";
 
   return [
     {
@@ -67,7 +69,7 @@ function actionOptions(status: MigrationStatus | null): SelectOption[] {
     },
     {
       name: "Migration manager",
-      description: "Browse applied and pending migrations",
+      description: managerHint,
       value: MANAGER,
     },
     {
@@ -518,6 +520,13 @@ export function mountConnectionScreen(
 
       if (option.value === ROLLBACK) {
         startRollback();
+        return;
+      }
+
+      if (option.value === MANAGER) {
+        disposed = true;
+        unsubscribe();
+        ctx.showMigrationManager(connection.name);
         return;
       }
 

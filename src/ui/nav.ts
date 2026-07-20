@@ -14,6 +14,7 @@ export type AppContext = {
   showCreateConnection: () => void;
   showConnection: (name: string, flash?: ActionFlash) => void;
   showEditConnection: (name: string) => void;
+  showMigrationManager: (name: string, flash?: ActionFlash) => void;
 };
 
 /** Destroy and detach all children of the renderer root. */

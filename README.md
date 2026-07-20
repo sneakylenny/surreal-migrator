@@ -2,13 +2,27 @@
 
 **SurrealDB migrator** / **Surreal migration tool** — an interactive CLI for managing SurrealDB schema and data migrations.
 
-![Surreal Migrator Screenshot](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-17%20at%2014-18-16.png)
-
 A terminal-based CLI for [SurrealDB](https://surrealdb.com) migrations, built on [Bun](https://bun.sh) with [OpenTUI](https://opentui.com/) for the interactive UI and the [SurrealDB JavaScript SDK](https://surrealdb.com/docs/reference/javascript) for database operations.
 
 > **Bun only — not Node.js.** The npm package and TypeScript migrations require [Bun](https://bun.sh). This project does not run under Node (`node`, `npm`, `npx`, `pnpm`, or `yarn`). Node users who only need SurQL migrations can use a [prebuilt binary](https://github.com/sneakylenny/surreal-migrator/releases) instead.
 
 > **AI-assisted.** This package was built with the help of AI.
+
+## Screenshots
+
+### Connections list
+
+![Connections list](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-29-31.png)
+
+### Connection detail
+
+![Connection detail](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-32-06.png)
+
+### Migration manager
+
+![Migration manager](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-35-44.png)
+
+[More...](docs/screenshots.md).
 
 ## Requirements
 
@@ -96,11 +110,11 @@ If a migration’s local source files are missing, that id is **skipped** (with 
 
 Browse local and applied migrations with status:
 
-| Status | Meaning |
-|--------|---------|
-| **pending** | Local files exist; not applied in the DB |
-| **applied** | Local files exist and the DB record is present |
-| **missing source** | DB record exists; local files are gone |
+| Status             | Meaning                                        |
+| ------------------ | ---------------------------------------------- |
+| **pending**        | Local files exist; not applied in the DB       |
+| **applied**        | Local files exist and the DB record is present |
+| **missing source** | DB record exists; local files are gone         |
 
 **Pending**
 

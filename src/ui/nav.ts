@@ -7,6 +7,7 @@ export type AppContext = {
   setConfig: (config: Config) => void;
   showConnections: () => void;
   showCreateConnection: () => void;
+  showConnection: (name: string) => void;
 };
 
 /** Destroy and detach all children of the renderer root. */

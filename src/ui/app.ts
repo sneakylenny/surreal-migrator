@@ -1,6 +1,7 @@
 import { createCliRenderer } from "@opentui/core";
 import type { Config } from "../core/config.ts";
 import { clearScreen, type AppContext } from "./nav.ts";
+import { mountConnectionScreen } from "./screens/connection.ts";
 import { mountConnectionsScreen } from "./screens/connections.ts";
 import { mountCreateConnectionScreen } from "./screens/create-connection.ts";
 import { colors } from "./theme.ts";
@@ -28,6 +29,10 @@ export async function startApp(initialConfig: Config): Promise<void> {
     showCreateConnection: () => {
       clearScreen(renderer);
       mountCreateConnectionScreen(ctx);
+    },
+    showConnection: (name) => {
+      clearScreen(renderer);
+      mountConnectionScreen(ctx, name);
     },
   };
 

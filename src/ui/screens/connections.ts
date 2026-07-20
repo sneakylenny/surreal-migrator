@@ -70,12 +70,6 @@ export function mountConnectionsScreen(ctx: AppContext): void {
     fg: colors.muted,
   });
 
-  const status = new TextRenderable(renderer, {
-    id: "connections-status",
-    content: "",
-    fg: colors.muted,
-  });
-
   const select = new SelectRenderable(renderer, {
     id: "connections-select",
     width: "100%",
@@ -110,14 +104,14 @@ export function mountConnectionsScreen(ctx: AppContext): void {
         return;
       }
 
-      status.content = `Connection "${String(option.value)}" — coming soon`;
+      unsubscribe();
+      ctx.showConnection(String(option.value));
     },
   );
 
   root.add(title);
   root.add(subtitle);
   root.add(select);
-  root.add(status);
   renderer.root.add(root);
   select.focus();
 }

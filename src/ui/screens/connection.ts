@@ -1,0 +1,218 @@
+import {
+  BoxRenderable,
+  SelectRenderable,
+  SelectRenderableEvents,
+  TextRenderable,
+  type SelectOption,
+} from "@opentui/core";
+import {
+  findConnection,
+  resolveMigrationFormat,
+} from "../../core/config.ts";
+import {
+  formatPendingHint,
+  formatPendingOverview,
+  formatRollbackHint,
+  getMigrationStatus,
+  type MigrationStatus,
+} from "../../core/commands/migration/status.ts";
+import type { AppContext } from "../nav.ts";
+import { onKeypress } from "../nav.ts";
+import { colors, selectTheme } from "../theme.ts";
+
+const CREATE = "create";
+const MIGRATE = "migrate";
+const ROLLBACK = "rollback";
+const MANAGER = "manager";
+const MAKE_DEFAULT = "make-default";
+const BACK = "back";
+
+function formatLabel(format: "surql" | "ts"): string {
+  return format === "ts" ? "TypeScript" : "Split SurQL";
+}
+
+function actionOptions(
+  status: MigrationStatus | null,
+  isDefault: boolean,
+): SelectOption[] {
+  const migrateHint = status ? formatPendingHint(status) : "…";
+  const rollbackHint = status ? formatRollbackHint(status) : "…";
+
+  return [
+    {
+      name: "Create migration",
+      description: "Add a new migration file",
+      value: CREATE,
+    },
+    {
+      name: "Migrate",
+      description: migrateHint,
+      value: MIGRATE,
+    },
+    {
+      name: "Rollback",
+      description: rollbackHint,
+      value: ROLLBACK,
+    },
+    {
+      name: "Migration manager",
+      description: "Browse applied and pending migrations",
+      value: MANAGER,
+    },
+    {
+      name: "Make default",
+      description: isDefault
+        ? "Already the default connection"
+        : "Use this connection by default",
+      value: MAKE_DEFAULT,
+    },
+    {
+      name: "Back",
+      description: "Return to connections",
+      value: BACK,
+    },
+  ];
+}
+
+export function mountConnectionScreen(
+  ctx: AppContext,
+  connectionName: string,
+): void {
+  const { renderer } = ctx;
+  const config = ctx.getConfig();
+  const connection = findConnection(config, connectionName);
+
+  if (!connection) {
+    ctx.showConnections();
+    return;
+  }
+
+  const isDefault = config.defaultConnection === connection.name;
+  const format = resolveMigrationFormat(config, connection);
+
+  const root = new BoxRenderable(renderer, {
+    id: "connection-root",
+    width: "100%",
+    height: "100%",
+    flexDirection: "column",
+    padding: 2,
+    gap: 1,
+    backgroundColor: colors.obsidian,
+  });
+
+  const title = new TextRenderable(renderer, {
+    id: "connection-title",
+    content: isDefault ? `${connection.name} (default)` : connection.name,
+    fg: colors.pink,
+    flexShrink: 0,
+  });
+
+  const infoBox = new BoxRenderable(renderer, {
+    id: "connection-info",
+    width: "100%",
+    flexShrink: 0,
+    flexDirection: "column",
+    gap: 1,
+    padding: 1,
+    border: true,
+    borderStyle: "rounded",
+    borderColor: colors.purple,
+    backgroundColor: colors.lavender,
+    title: "Details",
+    titleColor: colors.pink,
+  });
+
+  const details = new TextRenderable(renderer, {
+    id: "connection-details",
+    content: [
+      `${connection.endpoint} · ${connection.namespace} / ${connection.database}`,
+      `Table ${connection.migrationTable} · ${formatLabel(format)}`,
+    ].join("\n"),
+    fg: colors.moonlit,
+    flexShrink: 0,
+  });
+
+  const statusText = new TextRenderable(renderer, {
+    id: "connection-status-overview",
+    content: "Loading status…",
+    fg: colors.muted,
+    flexShrink: 0,
+  });
+
+  infoBox.add(details);
+  infoBox.add(statusText);
+
+  const actionStatus = new TextRenderable(renderer, {
+    id: "connection-action-status",
+    content: "",
+    fg: colors.muted,
+    flexShrink: 0,
+  });
+
+  const hints = new TextRenderable(renderer, {
+    id: "connection-hints",
+    content: "Enter select · Esc back",
+    fg: colors.muted,
+    flexShrink: 0,
+  });
+
+  const select = new SelectRenderable(renderer, {
+    id: "connection-actions",
+    width: "100%",
+    flexGrow: 1,
+    options: actionOptions(null, isDefault),
+    showDescription: true,
+    showScrollIndicator: true,
+    wrapSelection: true,
+    ...selectTheme,
+  });
+
+  let disposed = false;
+
+  function goBack() {
+    disposed = true;
+    unsubscribe();
+    ctx.showConnections();
+  }
+
+  const unsubscribe = onKeypress(renderer, (key) => {
+    if (key.name === "escape") {
+      key.preventDefault();
+      goBack();
+    }
+  });
+
+  select.on(
+    SelectRenderableEvents.ITEM_SELECTED,
+    (_index: number, option: SelectOption) => {
+      if (option.value === BACK) {
+        goBack();
+        return;
+      }
+
+      if (option.value === MAKE_DEFAULT && isDefault) {
+        actionStatus.content = "Already the default connection.";
+        actionStatus.fg = colors.muted;
+        return;
+      }
+
+      actionStatus.content = "Coming soon";
+      actionStatus.fg = colors.muted;
+    },
+  );
+
+  root.add(title);
+  root.add(infoBox);
+  root.add(select);
+  root.add(actionStatus);
+  root.add(hints);
+  renderer.root.add(root);
+  select.focus();
+
+  void getMigrationStatus(config, connection).then((status) => {
+    if (disposed) return;
+    statusText.content = formatPendingOverview(status).join("\n");
+    statusText.fg = status.error ? "#ef4444" : colors.muted;
+    select.options = actionOptions(status, isDefault);
+  });
+}

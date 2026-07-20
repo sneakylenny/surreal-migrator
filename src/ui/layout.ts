@@ -4,10 +4,14 @@ import {
   TextRenderable,
   type CliRenderer,
 } from "@opentui/core";
+import packageJson from "../../package.json" with { type: "json" };
 import { colors } from "./theme.ts";
 
 /** Display name for the TUI — change here to update all screens. */
 export const APP_TITLE = "Surreal Migrator";
+
+/** App version from package.json. */
+export const APP_VERSION = packageJson.version;
 
 /** Route segments shown under the app title, e.g. `connections / local`. */
 export type AppPath = readonly string[];
@@ -19,15 +23,38 @@ export function formatAppPath(path: AppPath): string {
 export function createAppTitle(
   renderer: CliRenderer,
   id = "app-title",
-): ASCIIFontRenderable {
-  return new ASCIIFontRenderable(renderer, {
-    id,
-    text: APP_TITLE,
-    font: "tiny",
-    color: colors.pink,
-    backgroundColor: colors.obsidian,
-    selectable: false,
+): BoxRenderable {
+  const row = new BoxRenderable(renderer, {
+    id: `${id}-row`,
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 2,
+    flexShrink: 0,
   });
+
+  row.add(
+    new ASCIIFontRenderable(renderer, {
+      id,
+      text: APP_TITLE,
+      font: "tiny",
+      color: colors.pink,
+      backgroundColor: colors.obsidian,
+      selectable: false,
+      flexShrink: 0,
+    }),
+  );
+
+  row.add(
+    new TextRenderable(renderer, {
+      id: `${id}-version`,
+      content: `v${APP_VERSION}`,
+      fg: colors.muted,
+      flexShrink: 0,
+    }),
+  );
+
+  return row;
 }
 
 export type ScreenShell = {

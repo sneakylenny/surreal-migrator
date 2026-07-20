@@ -1,5 +1,6 @@
 import type { Config, Connection } from "../../config.ts";
 import {
+  forgetMigrationRecord,
   revertAllApplied,
   revertLatestBatch,
   revertMigration,
@@ -45,5 +46,17 @@ export async function rollbackAfter(
 ): Promise<RunResult> {
   return runWithConnection(config, connection, cwd, (db, options) =>
     revertMigrationsAfter(db, options, id),
+  );
+}
+
+/** Delete the DB migration row only — does not run down. */
+export async function deleteMigrationRecord(
+  config: Config,
+  connection: Connection,
+  id: string,
+  cwd = process.cwd(),
+): Promise<RunResult> {
+  return runWithConnection(config, connection, cwd, (db, options) =>
+    forgetMigrationRecord(db, options, id),
   );
 }

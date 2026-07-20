@@ -8,6 +8,7 @@ import {
   applyMigration,
   applyPendingMigrations,
   applyPendingThrough,
+  forgetMigrationRecord,
   nextBatchNumber,
   revertAllApplied,
   revertLatestBatch,
@@ -420,6 +421,48 @@ describe("single migration manager ops (surql)", () => {
           "20260101000001_create-widget",
         );
         expect(reverted).toEqual([]);
+      },
+      { migrationTable: "migration" },
+    );
+  });
+
+  test("forgetMigrationRecord removes DB row without running down", async () => {
+    const fixture = await createFixture("surql");
+
+    await withMemDb(
+      async (db) => {
+        await applyPendingMigrations(db, fixture);
+        const forgotten = await forgetMigrationRecord(
+          db,
+          fixture,
+          "20260101000001_create-widget",
+        );
+        expect(forgotten).toEqual(["20260101000001_create-widget"]);
+
+        const applied = await fetchAppliedMigrationsOn(db, "migration");
+        expect(applied.map((m) => m.id)).toEqual([
+          "20260101000002_create-item",
+        ]);
+
+        const tables = await listDbTables(db);
+        expect(tables).toContain("widget");
+        expect(tables).toContain("item");
+      },
+      { migrationTable: "migration" },
+    );
+  });
+
+  test("forgetMigrationRecord is a no-op when not applied", async () => {
+    const fixture = await createFixture("surql");
+
+    await withMemDb(
+      async (db) => {
+        const forgotten = await forgetMigrationRecord(
+          db,
+          fixture,
+          "20260101000001_create-widget",
+        );
+        expect(forgotten).toEqual([]);
       },
       { migrationTable: "migration" },
     );

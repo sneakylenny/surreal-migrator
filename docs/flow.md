@@ -30,12 +30,14 @@ flowchart TD
   rollbackMenu -->|all| rollbackAll["Down all applied"]
   rollbackMenu -->|back| connectionMenu
   connectionMenu -->|migration manager| managerList["List local migrations with applied/pending"]
-  managerList -->|select pending| pendingMenu["Run this / Migrate to here / Back"]
+  managerList -->|select pending| pendingMenu["Run this / Migrate to here / Delete record / Back"]
   pendingMenu -->|run this| migrateOne["Apply single migration"]
   pendingMenu -->|migrate to here| migrateThrough["Apply pending through selected"]
-  managerList -->|select applied| appliedMenu["Rollback this / Roll back to here / Back"]
+  pendingMenu -->|delete record| deleteRecord["Delete DB migration row no down"]
+  managerList -->|select applied| appliedMenu["Rollback this / Roll back to here / Delete record / Back"]
   appliedMenu -->|this| rollbackOne["Down selected migration only"]
   appliedMenu -->|to here| rollbackAfter["Down migrations after selected"]
+  appliedMenu -->|delete record| deleteRecord
   migrateUp --> connectionMenu
   rollbackBatch --> connectionMenu
   rollbackAll --> connectionMenu
@@ -43,6 +45,7 @@ flowchart TD
   migrateThrough --> managerList
   rollbackAfter --> managerList
   rollbackOne --> managerList
+  deleteRecord --> managerList
   managerList -->|back| connectionMenu
   connectionMenu -->|edit connection| editConn[Edit connection form]
   editConn --> connectionMenu

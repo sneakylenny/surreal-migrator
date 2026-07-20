@@ -10,6 +10,7 @@ import {
   migrateThrough,
 } from "../../core/commands/migration/migrate.ts";
 import {
+  deleteMigrationRecord,
   rollbackAfter,
   rollbackOne,
 } from "../../core/commands/migration/rollback.ts";
@@ -26,7 +27,12 @@ import type { ActionFlash, AppContext } from "../nav.ts";
 import { onKeypress } from "../nav.ts";
 import { colors, selectTheme } from "../theme.ts";
 
-type OverlayMode = "none" | "confirm" | "pending-menu" | "applied-menu";
+type OverlayMode =
+  | "none"
+  | "confirm"
+  | "pending-menu"
+  | "applied-menu"
+  | "missing-menu";
 
 type ListItem =
   | { kind: "loading" }
@@ -36,6 +42,13 @@ type ListItem =
 const statusColor = {
   applied: colors.success,
   pending: colors.pink,
+  missing: "#ef4444",
+} as const;
+
+const statusLabel = {
+  applied: "applied",
+  pending: "pending",
+  missing: "missing source",
 } as const;
 
 function formatRunResult(
@@ -229,7 +242,7 @@ export function mountMigrationManagerScreen(
         row.add(
           new TextRenderable(renderer, {
             id: `manager-row-${index}-status`,
-            content: item.entry.status,
+            content: statusLabel[item.entry.status],
             fg: statusColor[item.entry.status],
             flexShrink: 0,
           }),
@@ -267,6 +280,8 @@ export function mountMigrationManagerScreen(
 
     if (item.entry.status === "pending") {
       showPendingMenu(item.entry);
+    } else if (item.entry.status === "missing") {
+      showMissingMenu(item.entry);
     } else {
       showAppliedMenu(item.entry);
     }
@@ -276,6 +291,7 @@ export function mountMigrationManagerScreen(
     message: string,
     onYes: () => void,
     onNo: () => void,
+    yesDescription = "Continue",
   ) {
     clearOverlay();
     overlayMode = "confirm";
@@ -286,7 +302,7 @@ export function mountMigrationManagerScreen(
       width: "100%",
       height: 4,
       options: [
-        { name: "Yes", description: "Continue", value: true },
+        { name: "Yes", description: yesDescription, value: true },
         { name: "No", description: "Cancel", value: false },
       ],
       showDescription: true,
@@ -303,6 +319,26 @@ export function mountMigrationManagerScreen(
     confirm.focus();
   }
 
+  function confirmDeleteRecord(
+    entry: MigrationListEntry,
+    reopen: () => void,
+  ) {
+    showConfirm(
+      `Delete DB record for ${entry.id}? Only for stuck DB/codebase mismatches — does not run down.`,
+      () => {
+        void runDeleteRecord(entry.id);
+      },
+      reopen,
+      "Remove record only (no down migration)",
+    );
+  }
+
+  const deleteRecordOption = {
+    name: "Delete migration record",
+    description: "Remove DB history row only (no down) — mismatch cleanup",
+    value: "delete-record",
+  } as const;
+
   function showPendingMenu(entry: MigrationListEntry) {
     activeEntry = entry;
     clearOverlay();
@@ -312,7 +348,7 @@ export function mountMigrationManagerScreen(
     const menu = new SelectRenderable(renderer, {
       id: "manager-pending-menu",
       width: "100%",
-      height: 6,
+      height: 8,
       options: [
         {
           name: "Run this migration",
@@ -324,6 +360,7 @@ export function mountMigrationManagerScreen(
           description: "Apply pending through this migration",
           value: "through",
         },
+        deleteRecordOption,
         {
           name: "Back",
           description: "Return to list",
@@ -339,6 +376,12 @@ export function mountMigrationManagerScreen(
         if (option.value === "back") {
           closeOverlay();
           setActionStatus("");
+          return;
+        }
+        if (option.value === "delete-record") {
+          confirmDeleteRecord(entry, () => {
+            showPendingMenu(entry);
+          });
           return;
         }
         if (!latestStatus) return;
@@ -383,7 +426,7 @@ export function mountMigrationManagerScreen(
     const menu = new SelectRenderable(renderer, {
       id: "manager-applied-menu",
       width: "100%",
-      height: 6,
+      height: 8,
       options: [
         {
           name: "Rollback this migration",
@@ -395,6 +438,7 @@ export function mountMigrationManagerScreen(
           description: "Down migrations after this one",
           value: "after",
         },
+        deleteRecordOption,
         {
           name: "Back",
           description: "Return to list",
@@ -410,6 +454,12 @@ export function mountMigrationManagerScreen(
         if (option.value === "back") {
           closeOverlay();
           setActionStatus("");
+          return;
+        }
+        if (option.value === "delete-record") {
+          confirmDeleteRecord(entry, () => {
+            showAppliedMenu(entry);
+          });
           return;
         }
         if (!latestStatus) return;
@@ -439,6 +489,49 @@ export function mountMigrationManagerScreen(
             showAppliedMenu(entry);
           },
         );
+      },
+    );
+    overlayBox.add(menu);
+    menu.focus();
+  }
+
+  function showMissingMenu(entry: MigrationListEntry) {
+    activeEntry = entry;
+    clearOverlay();
+    overlayMode = "missing-menu";
+    paintList();
+    setActionStatus(
+      `Missing source: ${entry.id} (DB record exists, local files gone)`,
+      "error",
+    );
+    const menu = new SelectRenderable(renderer, {
+      id: "manager-missing-menu",
+      width: "100%",
+      height: 4,
+      options: [
+        deleteRecordOption,
+        {
+          name: "Back",
+          description: "Return to list",
+          value: "back",
+        },
+      ],
+      showDescription: true,
+      ...selectTheme,
+    });
+    menu.on(
+      SelectRenderableEvents.ITEM_SELECTED,
+      (_i: number, option: SelectOption) => {
+        if (option.value === "back") {
+          closeOverlay();
+          setActionStatus("");
+          return;
+        }
+        if (option.value === "delete-record") {
+          confirmDeleteRecord(entry, () => {
+            showMissingMenu(entry);
+          });
+        }
       },
     );
     overlayBox.add(menu);
@@ -481,19 +574,40 @@ export function mountMigrationManagerScreen(
     remount(formatRunResult("Rolled back", result, "Nothing to roll back."));
   }
 
+  async function runDeleteRecord(id: string) {
+    if (busy) return;
+    busy = true;
+    clearOverlay();
+    setActionStatus("Deleting migration record…", "muted");
+    const result = await deleteMigrationRecord(
+      ctx.getConfig(),
+      connection,
+      id,
+    );
+    remount(
+      formatRunResult(
+        "Deleted record",
+        result,
+        "No database record to delete.",
+      ),
+    );
+  }
+
   const unsubscribe = onKeypress(renderer, (key) => {
     if (busy) return;
 
     if (key.name === "escape") {
       key.preventDefault();
-      if (overlayMode === "confirm" && activeEntry) {
-        if (activeEntry.status === "pending") {
-          showPendingMenu(activeEntry);
-        } else {
-          showAppliedMenu(activeEntry);
-        }
-        return;
+    if (overlayMode === "confirm" && activeEntry) {
+      if (activeEntry.status === "pending") {
+        showPendingMenu(activeEntry);
+      } else if (activeEntry.status === "missing") {
+        showMissingMenu(activeEntry);
+      } else {
+        showAppliedMenu(activeEntry);
       }
+      return;
+    }
       if (overlayMode !== "none") {
         closeOverlay();
         setActionStatus("");
@@ -533,8 +647,13 @@ export function mountMigrationManagerScreen(
     latestStatus = status;
     if (status.error) {
       setActionStatus(status.error, "error");
-    } else if (status.local.length === 0) {
+    } else if (status.local.length === 0 && status.applied.length === 0) {
       setActionStatus("No migrations yet.", "muted");
+    } else if (status.missing.length > 0) {
+      setActionStatus(
+        `${status.missing.length} migration${status.missing.length === 1 ? "" : "s"} missing local source.`,
+        "error",
+      );
     }
     setItems([
       ...listMigrationsWithStatus(status).map(

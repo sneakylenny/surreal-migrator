@@ -276,6 +276,22 @@ export async function revertMigration(
 }
 
 /**
+ * Remove the applied migration row from the DB without running down.
+ * For stuck mismatch cleanup only — does not change schema/data.
+ */
+export async function forgetMigrationRecord(
+  db: Surreal,
+  options: MigrationRunOptions,
+  id: string,
+): Promise<string[]> {
+  const applied = await fetchAppliedMigrationsOn(db, options.migrationTable);
+  if (!applied.some((m) => m.id === id)) return [];
+
+  await markMigrationReverted(db, options.migrationTable, id);
+  return [id];
+}
+
+/**
  * Roll back every applied migration with id > selected (lexical).
  * The selected migration stays applied.
  */

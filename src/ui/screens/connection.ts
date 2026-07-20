@@ -145,8 +145,9 @@ export function mountConnectionScreen(
 
   const detailsPane = new BoxRenderable(renderer, {
     id: "connection-details-pane",
-    flexGrow: 1,
-    flexShrink: 1,
+    width: "50%",
+    flexGrow: 0,
+    flexShrink: 0,
     flexDirection: "column",
     padding: 1,
     gap: 0,
@@ -167,8 +168,9 @@ export function mountConnectionScreen(
 
   const statusPane = new BoxRenderable(renderer, {
     id: "connection-status-pane",
-    flexGrow: 1,
-    flexShrink: 1,
+    width: "50%",
+    flexGrow: 0,
+    flexShrink: 0,
     flexDirection: "column",
     padding: 1,
     gap: 0,

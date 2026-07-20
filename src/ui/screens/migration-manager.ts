@@ -5,6 +5,8 @@ import {
   TextRenderable,
   type SelectOption,
 } from "@opentui/core";
+import path from "node:path";
+import { deleteMigrationFiles } from "../../core/commands/migration/create.ts";
 import {
   migrateOne,
   migrateThrough,
@@ -358,7 +360,7 @@ export function mountMigrationManagerScreen(
     const menu = new SelectRenderable(renderer, {
       id: "manager-pending-menu",
       width: "100%",
-      height: 6,
+      height: 8,
       options: [
         {
           name: "Run this migration",
@@ -369,6 +371,11 @@ export function mountMigrationManagerScreen(
           name: "Migrate to here",
           description: "Apply pending through this migration",
           value: "through",
+        },
+        {
+          name: "Delete source files",
+          description: "Remove local migration files (not applied)",
+          value: "delete-files",
         },
         {
           name: "Back",
@@ -397,6 +404,19 @@ export function mountMigrationManagerScreen(
             () => {
               showPendingMenu(entry);
             },
+          );
+          return;
+        }
+        if (option.value === "delete-files") {
+          showConfirm(
+            `Delete local source files for ${entry.id}? This cannot be undone.`,
+            () => {
+              void runDeleteFiles(entry.id);
+            },
+            () => {
+              showPendingMenu(entry);
+            },
+            "Delete files from disk",
           );
           return;
         }
@@ -666,6 +686,39 @@ export function mountMigrationManagerScreen(
         "No database record to delete.",
       ),
     );
+  }
+
+  async function runDeleteFiles(id: string) {
+    if (busy) return;
+    busy = true;
+    clearOverlay();
+    setActionStatus("Deleting source files…", "muted");
+    const result = await deleteMigrationFiles(
+      ctx.getConfig(),
+      connection,
+      id,
+    );
+    if (result.ok) {
+      const relative = result.files.map((file) =>
+        path.relative(process.cwd(), file),
+      );
+      ctx.sessionLog.add({
+        kind: "deleted_files",
+        connection: connection.name,
+        files: relative,
+      });
+      remount({
+        message: `Deleted: ${relative.join(", ")}`,
+        kind: "success",
+      });
+      return;
+    }
+    ctx.sessionLog.add({
+      kind: "failed",
+      action: "delete migration files",
+      error: result.error,
+    });
+    remount({ message: result.error, kind: "error" });
   }
 
   const unsubscribe = onKeypress(renderer, (key) => {

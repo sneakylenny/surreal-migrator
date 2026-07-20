@@ -28,6 +28,12 @@ export type SessionEvent =
       id: string;
     }
   | {
+      kind: "deleted_files";
+      at: number;
+      connection: string;
+      files: string[];
+    }
+  | {
       kind: "failed";
       at: number;
       /** Short verb phrase, e.g. "roll back" / "migrate". */
@@ -80,6 +86,10 @@ export function formatSessionEvent(event: SessionEvent): string {
     }
     case "deleted_record":
       return `Deleted migration record ${event.id}`;
+    case "deleted_files":
+      return event.files.length === 1
+        ? `Deleted migration file ${event.files[0]}`
+        : `Deleted migration files ${formatIdList(event.files)}`;
     case "failed":
       return `Tried to ${event.action} but failed:\n  ${event.error}`;
   }

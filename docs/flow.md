@@ -37,9 +37,10 @@ flowchart TD
   rollbackMenu -->|back| connectionMenu
 
   connectionMenu -->|migration manager| managerList["List: pending / applied / missing source"]
-  managerList -->|select pending| pendingMenu["Run this / Migrate to here / Back"]
+  managerList -->|select pending| pendingMenu["Run this / Migrate to here / Delete files / Back"]
   pendingMenu -->|run this| migrateOne["Apply single migration"]
   pendingMenu -->|migrate to here| migrateThrough["Apply pending through selected inclusive"]
+  pendingMenu -->|delete files| deleteFiles["Delete local up/down or .ts files"]
   managerList -->|select applied| appliedMenu["Rollback this / Roll back to here / Back"]
   appliedMenu -->|this| rollbackOne["Down selected only"]
   appliedMenu -->|to here| rollbackAfter["Down migrations after selected"]
@@ -57,6 +58,7 @@ flowchart TD
   migrateThrough --> managerList
   rollbackAfter --> managerList
   rollbackOne --> managerList
+  deleteFiles --> managerList
   deleteRecord --> managerList
   managerList -->|back| connectionMenu
 ```
@@ -65,4 +67,5 @@ flowchart TD
 
 - **Paths** in the TUI are breadcrumbs (for example `connections / my-db / manager`), not clickable yet.
 - **Missing source** means a DB migration record exists without local files. Rollbacks that need those files **skip** them and report what was skipped; use **Delete migration record** only for mismatch cleanup.
+- **Delete source files** (pending only) removes local migration files and does not touch the database.
 - **Session activity** is in-memory for the current process and is printed on exit when non-empty.

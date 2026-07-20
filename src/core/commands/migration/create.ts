@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import {
   isValidKebabCase,
@@ -105,4 +105,48 @@ export async function createMigration(
   }
 
   return { ok: true, files };
+}
+
+export type DeleteMigrationFilesResult =
+  | { ok: true; files: string[] }
+  | { ok: false; error: string };
+
+/** Delete local migration source files for an id (does not touch the DB). */
+export async function deleteMigrationFiles(
+  config: Config,
+  connection: Connection,
+  id: string,
+  cwd = process.cwd(),
+): Promise<DeleteMigrationFilesResult> {
+  const trimmed = id.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Migration id is required" };
+  }
+
+  const format = resolveMigrationFormat(config, connection);
+  const unsupported = assertFormatSupported(format);
+  if (unsupported) {
+    return { ok: false, error: unsupported };
+  }
+
+  const dir = connectionMigrationsDir(
+    config.migrationsDir,
+    connection.name,
+    cwd,
+  );
+  const files = migrationPaths(format, dir, trimmed);
+  const deleted: string[] = [];
+
+  for (const file of files) {
+    if (await Bun.file(file).exists()) {
+      await unlink(file);
+      deleted.push(file);
+    }
+  }
+
+  if (deleted.length === 0) {
+    return { ok: false, error: "No local migration files found" };
+  }
+
+  return { ok: true, files: deleted };
 }

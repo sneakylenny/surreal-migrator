@@ -39,6 +39,16 @@ describe("formatSessionEvent", () => {
         ids: ["a"],
       }),
     ).toBe("Rolled back a");
+    expect(
+      formatSessionEvent({
+        kind: "deleted_files",
+        at: 0,
+        connection: "demo",
+        files: ["surreal/demo/a.up.surql", "surreal/demo/a.down.surql"],
+      }),
+    ).toBe(
+      "Deleted migration files surreal/demo/a.up.surql and surreal/demo/a.down.surql",
+    );
   });
 });
 

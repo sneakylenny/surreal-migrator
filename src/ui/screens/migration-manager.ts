@@ -348,7 +348,7 @@ export function mountMigrationManagerScreen(
     const menu = new SelectRenderable(renderer, {
       id: "manager-pending-menu",
       width: "100%",
-      height: 8,
+      height: 6,
       options: [
         {
           name: "Run this migration",
@@ -360,7 +360,6 @@ export function mountMigrationManagerScreen(
           description: "Apply pending through this migration",
           value: "through",
         },
-        deleteRecordOption,
         {
           name: "Back",
           description: "Return to list",
@@ -376,12 +375,6 @@ export function mountMigrationManagerScreen(
         if (option.value === "back") {
           closeOverlay();
           setActionStatus("");
-          return;
-        }
-        if (option.value === "delete-record") {
-          confirmDeleteRecord(entry, () => {
-            showPendingMenu(entry);
-          });
           return;
         }
         if (!latestStatus) return;
@@ -426,7 +419,7 @@ export function mountMigrationManagerScreen(
     const menu = new SelectRenderable(renderer, {
       id: "manager-applied-menu",
       width: "100%",
-      height: 8,
+      height: 6,
       options: [
         {
           name: "Rollback this migration",
@@ -438,7 +431,6 @@ export function mountMigrationManagerScreen(
           description: "Down migrations after this one",
           value: "after",
         },
-        deleteRecordOption,
         {
           name: "Back",
           description: "Return to list",
@@ -454,12 +446,6 @@ export function mountMigrationManagerScreen(
         if (option.value === "back") {
           closeOverlay();
           setActionStatus("");
-          return;
-        }
-        if (option.value === "delete-record") {
-          confirmDeleteRecord(entry, () => {
-            showAppliedMenu(entry);
-          });
           return;
         }
         if (!latestStatus) return;

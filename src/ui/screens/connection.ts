@@ -25,17 +25,14 @@ const CREATE = "create";
 const MIGRATE = "migrate";
 const ROLLBACK = "rollback";
 const MANAGER = "manager";
-const MAKE_DEFAULT = "make-default";
+const EDIT = "edit";
 const BACK = "back";
 
 function formatLabel(format: "surql" | "ts"): string {
   return format === "ts" ? "TypeScript" : "Split SurQL";
 }
 
-function actionOptions(
-  status: MigrationStatus | null,
-  isDefault: boolean,
-): SelectOption[] {
+function actionOptions(status: MigrationStatus | null): SelectOption[] {
   const migrateHint = status ? formatPendingHint(status) : "…";
   const rollbackHint = status ? formatRollbackHint(status) : "…";
 
@@ -61,11 +58,9 @@ function actionOptions(
       value: MANAGER,
     },
     {
-      name: "Make default",
-      description: isDefault
-        ? "Already the default connection"
-        : "Use this connection by default",
-      value: MAKE_DEFAULT,
+      name: "Edit connection",
+      description: "Endpoint, credentials, format, default",
+      value: EDIT,
     },
     {
       name: "Back",
@@ -176,7 +171,7 @@ export function mountConnectionScreen(
     id: "connection-actions",
     width: "100%",
     flexGrow: 1,
-    options: actionOptions(null, isDefault),
+    options: actionOptions(null),
     showDescription: true,
     showScrollIndicator: true,
     wrapSelection: true,
@@ -206,9 +201,10 @@ export function mountConnectionScreen(
         return;
       }
 
-      if (option.value === MAKE_DEFAULT && isDefault) {
-        actionStatus.content = "Already the default connection.";
-        actionStatus.fg = colors.muted;
+      if (option.value === EDIT) {
+        disposed = true;
+        unsubscribe();
+        ctx.showEditConnection(connection.name);
         return;
       }
 
@@ -228,6 +224,6 @@ export function mountConnectionScreen(
     if (disposed) return;
     statusText.content = formatPendingOverview(status).join("\n");
     statusText.fg = status.error ? "#ef4444" : colors.muted;
-    select.options = actionOptions(status, isDefault);
+    select.options = actionOptions(status);
   });
 }

@@ -4,6 +4,7 @@ import { clearScreen, type AppContext } from "./nav.ts";
 import { mountConnectionScreen } from "./screens/connection.ts";
 import { mountConnectionsScreen } from "./screens/connections.ts";
 import { mountCreateConnectionScreen } from "./screens/create-connection.ts";
+import { mountEditConnectionScreen } from "./screens/edit-connection.ts";
 import { colors } from "./theme.ts";
 
 export async function startApp(initialConfig: Config): Promise<void> {
@@ -33,6 +34,10 @@ export async function startApp(initialConfig: Config): Promise<void> {
     showConnection: (name) => {
       clearScreen(renderer);
       mountConnectionScreen(ctx, name);
+    },
+    showEditConnection: (name) => {
+      clearScreen(renderer);
+      mountEditConnectionScreen(ctx, name);
     },
   };
 

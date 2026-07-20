@@ -6,8 +6,8 @@ import {
   type Config,
   type Connection,
   type MigrationFormat,
-} from "../config.ts";
-import { assertFormatSupported } from "../features.ts";
+} from "../../config.ts";
+import { assertFormatSupported } from "../../flags.ts";
 import templateDownSurql from "./templates/migration.down.surql" with {
   type: "text",
 };

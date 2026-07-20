@@ -2,8 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fetchAppliedMigrationsOn, listDbTables } from "../db.ts";
-import { withMemDb } from "../test/mem-db.ts";
+import { fetchAppliedMigrationsOn, listDbTables } from "../../db.ts";
+import { withMemDb } from "../../test/mem-db.ts";
 import {
   applyMigration,
   applyPendingMigrations,
@@ -14,7 +14,7 @@ import {
   revertMigrationsAfter,
   sortForRollback,
   type MigrationRunOptions,
-} from "./run.ts";
+} from "./runner.ts";
 
 const tempDirs: string[] = [];
 

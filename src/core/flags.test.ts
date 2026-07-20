@@ -3,7 +3,7 @@ import {
   assertFormatSupported,
   formatToPersist,
   migrationFormatOptions,
-} from "./features.ts";
+} from "./flags.ts";
 import {
   resolveMigrationFormat,
   type Config,

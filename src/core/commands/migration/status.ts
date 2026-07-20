@@ -1,12 +1,12 @@
 import { readdir } from "node:fs/promises";
-import type { Config, Connection, MigrationFormat } from "../config.ts";
-import { resolveMigrationFormat } from "../config.ts";
-import { fetchAppliedMigrations } from "../db.ts";
+import type { Config, Connection, MigrationFormat } from "../../config.ts";
+import { resolveMigrationFormat } from "../../config.ts";
+import { fetchAppliedMigrations } from "../../db.ts";
 import {
   getConnectionCredentials,
   type ConnectionCredentials,
-} from "../env.ts";
-import { assertFormatSupported } from "../features.ts";
+} from "../../env.ts";
+import { assertFormatSupported } from "../../flags.ts";
 import { connectionMigrationsDir } from "./create.ts";
 
 export type MigrationStatus = {

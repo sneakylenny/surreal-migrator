@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { recordIdKey } from "../db.ts";
+import { recordIdKey } from "../../db.ts";
 import {
   formatManagerHint,
   formatPendingHint,

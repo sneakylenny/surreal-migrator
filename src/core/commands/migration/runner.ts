@@ -1,20 +1,20 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Surreal } from "surrealdb";
-import type { Config, Connection, MigrationFormat } from "../config.ts";
-import { resolveMigrationFormat } from "../config.ts";
+import type { Config, Connection, MigrationFormat } from "../../config.ts";
+import { resolveMigrationFormat } from "../../config.ts";
 import {
   fetchAppliedMigrationsOn,
   markMigrationApplied,
   markMigrationReverted,
   withConnection,
   type AppliedMigration,
-} from "../db.ts";
+} from "../../db.ts";
 import {
   getConnectionCredentials,
   type ConnectionCredentials,
-} from "../env.ts";
-import { assertFormatSupported } from "../features.ts";
+} from "../../env.ts";
+import { assertFormatSupported } from "../../flags.ts";
 import { connectionMigrationsDir } from "./create.ts";
 import { listLocalMigrationIds } from "./status.ts";
 
@@ -264,7 +264,7 @@ export async function revertMigrationsAfter(
   return processed;
 }
 
-async function runWithConnection(
+export async function runWithConnection(
   config: Config,
   connection: Connection,
   cwd: string,
@@ -298,61 +298,4 @@ async function runWithConnection(
     return { ok: false, error: result.error, processed };
   }
   return { ok: true, processed };
-}
-
-export async function migrateUp(
-  config: Config,
-  connection: Connection,
-  cwd = process.cwd(),
-): Promise<RunResult> {
-  return runWithConnection(config, connection, cwd, applyPendingMigrations);
-}
-
-export async function migrateOne(
-  config: Config,
-  connection: Connection,
-  id: string,
-  cwd = process.cwd(),
-): Promise<RunResult> {
-  return runWithConnection(config, connection, cwd, (db, options) =>
-    applyMigration(db, options, id),
-  );
-}
-
-export async function rollbackBatch(
-  config: Config,
-  connection: Connection,
-  cwd = process.cwd(),
-): Promise<RunResult> {
-  return runWithConnection(config, connection, cwd, revertLatestBatch);
-}
-
-export async function rollbackAll(
-  config: Config,
-  connection: Connection,
-  cwd = process.cwd(),
-): Promise<RunResult> {
-  return runWithConnection(config, connection, cwd, revertAllApplied);
-}
-
-export async function rollbackOne(
-  config: Config,
-  connection: Connection,
-  id: string,
-  cwd = process.cwd(),
-): Promise<RunResult> {
-  return runWithConnection(config, connection, cwd, (db, options) =>
-    revertMigration(db, options, id),
-  );
-}
-
-export async function rollbackAfter(
-  config: Config,
-  connection: Connection,
-  id: string,
-  cwd = process.cwd(),
-): Promise<RunResult> {
-  return runWithConnection(config, connection, cwd, (db, options) =>
-    revertMigrationsAfter(db, options, id),
-  );
 }

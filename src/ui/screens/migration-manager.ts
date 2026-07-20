@@ -196,13 +196,36 @@ export function mountMigrationManagerScreen(
     ctx.showMigrationManager(connection.name, flashMsg);
   }
 
+  function isRowActive(index: number, item: ListItem): boolean {
+    if (overlayMode === "none") {
+      return index === selectedIndex;
+    }
+    // Keep the migration that owns the open menu/confirm visible in the list.
+    return (
+      activeEntry !== null &&
+      item.kind === "entry" &&
+      item.entry.id === activeEntry.id
+    );
+  }
+
+  function addOverlayHeading(label: string, id: string) {
+    overlayBox.add(
+      new TextRenderable(renderer, {
+        id: "manager-overlay-heading",
+        content: `${label}: ${id}`,
+        fg: colors.moonlit,
+        flexShrink: 0,
+      }),
+    );
+  }
+
   function paintList() {
     for (const child of [...listBox.getChildren()]) {
       child.destroyRecursively();
     }
 
     items.forEach((item, index) => {
-      const selected = index === selectedIndex && overlayMode === "none";
+      const selected = isRowActive(index, item);
       const row = new BoxRenderable(renderer, {
         id: `manager-row-${index}`,
         width: "100%",
@@ -308,7 +331,18 @@ export function mountMigrationManagerScreen(
     clearOverlay();
     overlayMode = "confirm";
     paintList();
-    setActionStatus(message, "muted");
+    setActionStatus("");
+    if (activeEntry) {
+      addOverlayHeading(statusLabel[activeEntry.status], activeEntry.id);
+    }
+    overlayBox.add(
+      new TextRenderable(renderer, {
+        id: "manager-confirm-message",
+        content: message,
+        fg: colors.muted,
+        flexShrink: 0,
+      }),
+    );
     const confirm = new SelectRenderable(renderer, {
       id: "manager-confirm",
       width: "100%",
@@ -356,7 +390,8 @@ export function mountMigrationManagerScreen(
     clearOverlay();
     overlayMode = "pending-menu";
     paintList();
-    setActionStatus(`Pending: ${entry.id}`, "muted");
+    setActionStatus("");
+    addOverlayHeading("Pending", entry.id);
     const menu = new SelectRenderable(renderer, {
       id: "manager-pending-menu",
       width: "100%",
@@ -445,7 +480,8 @@ export function mountMigrationManagerScreen(
     clearOverlay();
     overlayMode = "applied-menu";
     paintList();
-    setActionStatus(`Applied: ${entry.id}`, "muted");
+    setActionStatus("");
+    addOverlayHeading("Applied", entry.id);
     const menu = new SelectRenderable(renderer, {
       id: "manager-applied-menu",
       width: "100%",
@@ -516,10 +552,8 @@ export function mountMigrationManagerScreen(
     clearOverlay();
     overlayMode = "missing-menu";
     paintList();
-    setActionStatus(
-      `Missing source: ${entry.id} (DB record exists, local files gone)`,
-      "error",
-    );
+    setActionStatus("DB record exists, local files gone", "error");
+    addOverlayHeading("Missing source", entry.id);
     const menu = new SelectRenderable(renderer, {
       id: "manager-missing-menu",
       width: "100%",

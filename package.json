@@ -37,8 +37,7 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@clack/prompts": "^1.7.0",
-    "picocolors": "^1.1.1",
+    "@opentui/core": "^0.4.5",
     "surrealdb": "^2.0.4"
   }
 }

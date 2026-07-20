@@ -1,6 +1,5 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import * as p from "@clack/prompts";
 import {
   isValidKebabCase,
   resolveMigrationFormat,
@@ -9,7 +8,6 @@ import {
   type MigrationFormat,
 } from "../config.ts";
 import { assertFormatSupported } from "../features.ts";
-import { theme } from "../theme.ts";
 import templateDownSurql from "./templates/migration.down.surql" with {
   type: "text",
 };
@@ -64,36 +62,31 @@ export function migrationPaths(
   return [path.join(dir, `${baseName}.ts`)];
 }
 
+export type CreateMigrationResult =
+  | { ok: true; files: string[] }
+  | { ok: false; error: string };
+
 export async function createMigration(
   config: Config,
   connection: Connection,
+  name: string,
   cwd = process.cwd(),
-): Promise<Config> {
+): Promise<CreateMigrationResult> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Name is required" };
+  }
+  if (!isValidKebabCase(trimmed)) {
+    return { ok: false, error: "Use kebab-case (e.g. add-users)" };
+  }
+
   const format = resolveMigrationFormat(config, connection);
   const unsupported = assertFormatSupported(format);
   if (unsupported) {
-    p.log.error(theme.error(unsupported));
-    return config;
+    return { ok: false, error: unsupported };
   }
 
-  const name = await p.text({
-    message: "Migration name (kebab-case)",
-    placeholder: "add-users",
-    validate: (value) => {
-      const trimmed = (value ?? "").trim();
-      if (!trimmed) return "Name is required";
-      if (!isValidKebabCase(trimmed)) {
-        return "Use kebab-case (e.g. add-users)";
-      }
-    },
-  });
-
-  if (p.isCancel(name)) {
-    p.log.message(theme.muted("Cancelled."));
-    return config;
-  }
-
-  const baseName = migrationBaseName(migrationTimestamp(), name.trim());
+  const baseName = migrationBaseName(migrationTimestamp(), trimmed);
   const dir = connectionMigrationsDir(
     config.migrationsDir,
     connection.name,
@@ -111,13 +104,5 @@ export async function createMigration(
     await Bun.write(files[0]!, templates.up);
   }
 
-  const relative = files.map((f) => path.relative(cwd, f));
-  p.log.success(theme.success("Created migration:"));
-  for (const rel of relative) {
-    p.log.message(theme.accent(`  ${rel}`));
-  }
-
-  await Bun.sleep(1500);
-
-  return config;
+  return { ok: true, files };
 }

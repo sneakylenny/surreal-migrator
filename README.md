@@ -4,7 +4,7 @@
 
 ![Surreal Migrator Screenshot](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-17%20at%2014-18-16.png)
 
-A terminal-based CLI for [SurrealDB](https://surrealdb.com) migrations, built on [Bun](https://bun.sh) with [clack](https://www.npmjs.com/package/@clack/prompts) for interactive prompts and the [SurrealDB JavaScript SDK](https://surrealdb.com/docs/reference/javascript) for database operations.
+A terminal-based CLI for [SurrealDB](https://surrealdb.com) migrations, built on [Bun](https://bun.sh) with [OpenTUI](https://opentui.com/) for the interactive UI and the [SurrealDB JavaScript SDK](https://surrealdb.com/docs/reference/javascript) for database operations.
 
 > **Bun only — not Node.js.** The npm package and TypeScript migrations require [Bun](https://bun.sh). This project does not run under Node (`node`, `npm`, `npx`, `pnpm`, or `yarn`). Node users who only need SurQL migrations can use a [prebuilt binary](https://github.com/sneakylenny/surreal-migrator/releases) instead.
 
@@ -35,7 +35,7 @@ bun install
 bun start
 ```
 
-On first run you choose a migrations directory (default `surreal/`). That creates `surreal.config.json`. Add a connection from the menu; credentials are stored in `.env` as `SURREAL_<CONNECTION>_USERNAME` and `SURREAL_<CONNECTION>_PASSWORD`.
+On first run the tool creates `surreal.config.json` with migrations directory `surreal/` if it does not already exist. The TUI opens on the connection select screen (add-connection and migration flows are coming next). Credentials are stored in `.env` as `SURREAL_<CONNECTION>_USERNAME` and `SURREAL_<CONNECTION>_PASSWORD`.
 
 ## Features
 

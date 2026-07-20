@@ -1,4 +1,5 @@
 import {
+  ASCIIFontRenderable,
   BoxRenderable,
   SelectRenderable,
   SelectRenderableEvents,
@@ -100,11 +101,13 @@ export function mountConnectionScreen(
     backgroundColor: colors.obsidian,
   });
 
-  const title = new TextRenderable(renderer, {
+  const title = new ASCIIFontRenderable(renderer, {
     id: "connection-title",
-    content: isDefault ? `${connection.name} (default)` : connection.name,
-    fg: colors.pink,
-    flexShrink: 0,
+    text: "Surreal Migrator",
+    font: "tiny",
+    color: colors.pink,
+    backgroundColor: colors.obsidian,
+    selectable: false,
   });
 
   const infoBox = new BoxRenderable(renderer, {
@@ -118,7 +121,7 @@ export function mountConnectionScreen(
     borderStyle: "rounded",
     borderColor: colors.purple,
     backgroundColor: colors.lavender,
-    title: "Details",
+    title: isDefault ? `${connection.name} (default)` : connection.name,
     titleColor: colors.pink,
   });
 

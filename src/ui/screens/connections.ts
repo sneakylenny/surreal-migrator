@@ -1,4 +1,5 @@
 import {
+  ASCIIFontRenderable,
   BoxRenderable,
   SelectRenderable,
   SelectRenderableEvents,
@@ -56,10 +57,13 @@ export function mountConnectionsScreen(ctx: AppContext): void {
     backgroundColor: colors.obsidian,
   });
 
-  const title = new TextRenderable(renderer, {
+  const title = new ASCIIFontRenderable(renderer, {
     id: "connections-title",
-    content: "Surreal Migrator",
-    fg: colors.pink,
+    text: "Surreal Migrator",
+    font: "tiny",
+    color: colors.pink,
+    backgroundColor: colors.obsidian,
+    selectable: false,
   });
 
   const subtitle = new TextRenderable(renderer, {
@@ -68,6 +72,7 @@ export function mountConnectionsScreen(ctx: AppContext): void {
       ? "Select a connection"
       : "No connections yet — add one to get started",
     fg: colors.muted,
+    flexShrink: 0,
   });
 
   const select = new SelectRenderable(renderer, {

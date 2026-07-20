@@ -7,6 +7,7 @@ import {
 } from "@opentui/core";
 import { connectionsForMenu } from "../../core/config.ts";
 import type { AppContext } from "../nav.ts";
+import { onKeypress } from "../nav.ts";
 import { colors, selectTheme } from "../theme.ts";
 
 const ADD = "__add__";
@@ -34,6 +35,11 @@ function connectionOptions(ctx: AppContext): SelectOption[] {
       value: QUIT,
     },
   ];
+}
+
+function quit(ctx: AppContext): void {
+  ctx.renderer.destroy();
+  process.exit(0);
 }
 
 export function mountConnectionsScreen(ctx: AppContext): void {
@@ -81,16 +87,25 @@ export function mountConnectionsScreen(ctx: AppContext): void {
     ...selectTheme,
   });
 
+  const unsubscribe = onKeypress(renderer, (key) => {
+    if (key.name === "escape") {
+      key.preventDefault();
+      unsubscribe();
+      quit(ctx);
+    }
+  });
+
   select.on(
     SelectRenderableEvents.ITEM_SELECTED,
     (_index: number, option: SelectOption) => {
       if (option.value === QUIT) {
-        renderer.destroy();
-        process.exit(0);
+        unsubscribe();
+        quit(ctx);
         return;
       }
 
       if (option.value === ADD) {
+        unsubscribe();
         ctx.showCreateConnection();
         return;
       }

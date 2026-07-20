@@ -63,6 +63,7 @@ export function mountEditConnectionScreen(
   let pendingInput: UpdateConnectionInput | null = null;
   let focusIndex = 0;
   let unsubscribe: (() => void) | null = null;
+  let verifyAbort: AbortController | null = null;
   let formatValue: MigrationFormat = currentFormat;
   let makeDefault = wasDefault;
 
@@ -417,8 +418,10 @@ export function mountEditConnectionScreen(
 
     pendingInput = raw;
     phase = "busy";
-    setStatus("Verifying connection…");
+    setStatus("Verifying connection… Esc or Enter to cancel");
+    hints.content = "Esc / Enter cancel check";
 
+    verifyAbort = new AbortController();
     const { connection: normalized, credentials } =
       normalizeCreateConnectionInput({
         name: existing.name,
@@ -427,9 +430,18 @@ export function mountEditConnectionScreen(
     const verified = await verifyConnectionConnectivity(
       normalized,
       credentials,
+      { signal: verifyAbort.signal },
     );
+    verifyAbort = null;
+    hints.content = "Tab focus · Enter next/submit · Esc cancel";
 
     if (!verified.ok) {
+      if (verified.cancelled) {
+        phase = "form";
+        setStatus("Verification cancelled.", "muted");
+        focusAt(0);
+        return;
+      }
       showRetrySelect(verified.error, verified.stage);
       return;
     }
@@ -440,6 +452,10 @@ export function mountEditConnectionScreen(
 
   for (const field of fields) {
     field.input.on(InputRenderableEvents.ENTER, () => {
+      if (phase === "busy" && verifyAbort) {
+        verifyAbort.abort();
+        return;
+      }
       if (phase !== "form") return;
       const idx = fields.indexOf(field);
       if (idx < fields.length - 1) {
@@ -456,6 +472,18 @@ export function mountEditConnectionScreen(
   }
 
   unsubscribe = onKeypress(renderer, (key) => {
+    if (phase === "busy" && verifyAbort) {
+      if (
+        key.name === "escape" ||
+        key.name === "return" ||
+        key.name === "enter"
+      ) {
+        key.preventDefault();
+        verifyAbort.abort();
+        return;
+      }
+    }
+
     if (key.name === "escape") {
       key.preventDefault();
       if (phase === "busy") return;

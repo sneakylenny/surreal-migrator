@@ -1,5 +1,7 @@
 # Surreal Migrator — interactive flow
 
+Entry: **no args** opens this TUI; **with args** runs direct CLI commands (see [docs/CLI.md](CLI.md)). Session activity and the migration manager exist only in the TUI.
+
 ```mermaid
 flowchart TD
   start[CLI start] --> hasConfig{surreal.config.json exists?}

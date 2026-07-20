@@ -1,17 +1,17 @@
 #!/usr/bin/env bun
+import { runCli } from "./cli/run.ts";
 import { ensureConfig } from "./core/setup.ts";
 import { startApp } from "./ui/app.ts";
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length > 0) {
-    console.error(
-      `Direct commands are not implemented yet (got: ${args.join(" ")}). Opening interactive menu.`,
-    );
+  if (args.length === 0) {
+    const config = await ensureConfig();
+    await startApp(config);
+    return;
   }
 
-  const config = await ensureConfig();
-  await startApp(config);
+  process.exit(await runCli(args));
 }
 
 main().catch((err) => {

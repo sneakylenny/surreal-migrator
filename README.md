@@ -8,8 +8,6 @@ A terminal-based CLI for [SurrealDB](https://surrealdb.com) migrations, built on
 
 > **Bun only — not Node.js.** The npm package and TypeScript migrations require [Bun](https://bun.sh). This project does not run under Node (`node`, `npm`, `npx`, `pnpm`, or `yarn`). Node users who only need SurQL migrations can use a [prebuilt binary](https://github.com/sneakylenny/surreal-migrator/releases) instead.
 
-> **Note:** The tool is menu-first. Direct commands (for example `surreal-migrator migrate` or `surreal-migrator status`) are planned for a later release so you can use it in scripts and CI.
-
 > **AI-assisted.** This package was built with the help of AI.
 
 ## Requirements
@@ -35,9 +33,26 @@ bun install
 bun start
 ```
 
-On first run the tool creates `surreal.config.json` with migrations directory `surreal/` if it does not already exist. The TUI opens on the connections list. Credentials are stored in `.env` as `SURREAL_<CONNECTION>_USERNAME` and `SURREAL_<CONNECTION>_PASSWORD`.
+On first run the tool creates `surreal.config.json` with migrations directory `surreal/` if it does not already exist. With no arguments the TUI opens on the connections list. Credentials are stored in `.env` as `SURREAL_<CONNECTION>_USERNAME` and `SURREAL_<CONNECTION>_PASSWORD`.
 
-When you quit (or press Ctrl+C), a short **session activity** summary is printed to the terminal for actions taken during that run.
+When you quit the TUI (or press Ctrl+C), a short **session activity** summary is printed to the terminal for actions taken during that run.
+
+## Direct commands
+
+For scripts and CI, pass a command instead of opening the TUI:
+
+```bash
+surreal-migrator init
+surreal-migrator status -c my-connection
+surreal-migrator up
+surreal-migrator down          # latest batch
+surreal-migrator down --all
+surreal-migrator create add-users
+```
+
+Use `-c` / `--connection` when no default connection is set. Run `surreal-migrator --help` for a summary.
+
+Full CLI reference (flags, targeted up/down, `connection add|update`, exit codes): [docs/CLI.md](docs/CLI.md).
 
 ## Features
 

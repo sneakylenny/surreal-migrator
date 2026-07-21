@@ -103,7 +103,8 @@ export function formatSessionEventLines(event: SessionEvent): string[] {
       `  ${event.error}`,
     ];
   }
-  return [`• ${formatSessionEvent(event)}`];
+  const prefix = "connection" in event ? `${event.connection}: ` : "";
+  return [`• ${prefix}${formatSessionEvent(event)}`];
 }
 
 /** Multi-line summary for the session activity screen / exit printout. */

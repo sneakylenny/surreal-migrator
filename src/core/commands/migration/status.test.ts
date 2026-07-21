@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { recordIdKey } from "../db.ts";
+import { recordIdKey } from "../../db.ts";
 import {
   formatManagerHint,
   formatPendingHint,
@@ -51,6 +51,7 @@ describe("pending formatting", () => {
         local: [],
         applied: [],
         pending: [],
+        missing: [],
         latestBatchCount: 0,
       }),
     ).toBe("up to date");
@@ -59,6 +60,7 @@ describe("pending formatting", () => {
         local: ["a"],
         applied: [],
         pending: ["a"],
+        missing: [],
         latestBatchCount: 0,
       }),
     ).toBe("1 pending");
@@ -69,6 +71,7 @@ describe("pending formatting", () => {
       local: ["a", "b"],
       applied: [],
       pending: ["a", "b"],
+      missing: [],
       latestBatchCount: 0,
     });
     expect(lines[0]).toBe("2 pending migrations:");
@@ -84,6 +87,7 @@ describe("listMigrationsWithStatus", () => {
         local: ["a", "b", "c"],
         applied: ["a", "c"],
         pending: ["b"],
+        missing: [],
         latestBatchCount: 2,
       }),
     ).toEqual([
@@ -93,12 +97,28 @@ describe("listMigrationsWithStatus", () => {
     ]);
   });
 
+  test("includes applied ids missing local source", () => {
+    expect(
+      listMigrationsWithStatus({
+        local: ["b"],
+        applied: ["a", "b"],
+        pending: [],
+        missing: ["a"],
+        latestBatchCount: 2,
+      }),
+    ).toEqual([
+      { id: "a", status: "missing" },
+      { id: "b", status: "applied" },
+    ]);
+  });
+
   test("formatManagerHint summarizes counts", () => {
     expect(
       formatManagerHint({
         local: [],
         applied: [],
         pending: [],
+        missing: [],
         latestBatchCount: 0,
       }),
     ).toBe("no migrations");
@@ -107,14 +127,25 @@ describe("listMigrationsWithStatus", () => {
         local: ["a", "b"],
         applied: ["a"],
         pending: ["b"],
+        missing: [],
         latestBatchCount: 1,
       }),
     ).toBe("1 applied, 1 pending");
     expect(
       formatManagerHint({
+        local: ["b"],
+        applied: ["a", "b"],
+        pending: [],
+        missing: ["a"],
+        latestBatchCount: 2,
+      }),
+    ).toBe("2 applied, 0 pending, 1 missing");
+    expect(
+      formatManagerHint({
         local: ["a"],
         applied: [],
         pending: ["a"],
+        missing: [],
         latestBatchCount: 0,
         error: "boom",
       }),
@@ -140,6 +171,7 @@ describe("rollback hint", () => {
         local: [],
         applied: [],
         pending: [],
+        missing: [],
         latestBatchCount: 0,
       }),
     ).toBe("nothing to roll back");
@@ -148,6 +180,7 @@ describe("rollback hint", () => {
         local: [],
         applied: ["a"],
         pending: [],
+        missing: [],
         latestBatchCount: 1,
       }),
     ).toBe("1 migration");
@@ -156,6 +189,7 @@ describe("rollback hint", () => {
         local: [],
         applied: ["a", "b"],
         pending: [],
+        missing: [],
         latestBatchCount: 2,
       }),
     ).toBe("2 migrations");

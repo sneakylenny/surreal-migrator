@@ -2,15 +2,27 @@
 
 **SurrealDB migrator** / **Surreal migration tool** — an interactive CLI for managing SurrealDB schema and data migrations.
 
-![Surreal Migrator Screenshot](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-17%20at%2014-18-16.png)
-
-A terminal-based CLI for [SurrealDB](https://surrealdb.com) migrations, built on [Bun](https://bun.sh) with [clack](https://www.npmjs.com/package/@clack/prompts) for interactive prompts and the [SurrealDB JavaScript SDK](https://surrealdb.com/docs/reference/javascript) for database operations.
+A terminal-based CLI for [SurrealDB](https://surrealdb.com) migrations, built on [Bun](https://bun.sh) with [OpenTUI](https://opentui.com/) for the interactive UI and the [SurrealDB JavaScript SDK](https://surrealdb.com/docs/reference/javascript) for database operations.
 
 > **Bun only — not Node.js.** The npm package and TypeScript migrations require [Bun](https://bun.sh). This project does not run under Node (`node`, `npm`, `npx`, `pnpm`, or `yarn`). Node users who only need SurQL migrations can use a [prebuilt binary](https://github.com/sneakylenny/surreal-migrator/releases) instead.
 
-> **Note:** The tool is currently menu-first. Direct commands (for example `surreal-migrator migrate`, `surreal-migrator migrate down 20260717100431_add-users` or `surreal-migrator status`) are planned for a later release so you can use it in scripts and CI.
-
 > **AI-assisted.** This package was built with the help of AI.
+
+## Screenshots
+
+### Connections list
+
+![Connections list](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-29-31.png)
+
+### Connection detail
+
+![Connection detail](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-32-06.png)
+
+### Migration manager
+
+![Migration manager](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-35-44.png)
+
+[More...](docs/screenshots.md).
 
 ## Requirements
 
@@ -35,7 +47,26 @@ bun install
 bun start
 ```
 
-On first run you choose a migrations directory (default `surreal/`). That creates `surreal.config.json`. Add a connection from the menu; credentials are stored in `.env` as `SURREAL_<CONNECTION>_USERNAME` and `SURREAL_<CONNECTION>_PASSWORD`.
+On first run the tool creates `surreal.config.json` with migrations directory `surreal/` if it does not already exist. With no arguments the TUI opens on the connections list. Credentials are stored in `.env` as `SURREAL_<CONNECTION>_USERNAME` and `SURREAL_<CONNECTION>_PASSWORD`.
+
+When you quit the TUI (or press Ctrl+C), a short **session activity** summary is printed to the terminal for actions taken during that run.
+
+## Direct commands
+
+For scripts and CI, pass a command instead of opening the TUI:
+
+```bash
+surreal-migrator init
+surreal-migrator status -c my-connection
+surreal-migrator up
+surreal-migrator down          # latest batch
+surreal-migrator down --all
+surreal-migrator create add-users
+```
+
+Use `-c` / `--connection` when no default connection is set. Run `surreal-migrator --help` for a summary.
+
+Full CLI reference (flags, targeted up/down, `connection add|update`, exit codes): [docs/CLI.md](docs/CLI.md).
 
 ## Features
 
@@ -43,42 +74,65 @@ On first run you choose a migrations directory (default `surreal/`). That create
 
 Manage multiple SurrealDB targets from one project:
 
-- Add a connection with endpoint, credentials, namespace, database, and migration table
-- Optionally choose TypeScript migrations when running via Bun
-- Verify the connection and create the migration tracking table
-- Pick a default connection (shown first in the list)
-- Switch the default later from the connection menu
+- **Add connection** — name, endpoint, credentials, namespace, database, migration table; migration format when TypeScript is available
+- Verify connectivity and ensure the migration tracking table exists (retry / continue / cancel on failure)
+- Optionally set as the default connection when none is set yet
+- **Edit connection** — update endpoint, credentials, format, and default from the connection screen
+- Open a connection for details, pending overview, and migration actions
 
 Each connection has its own migration folder under the migrations directory (for example `surreal/my-connection/`).
 
 ### Migration formats
 
-- **Split SurQL** (default) — `.up.surql` and `.down.surql` files. Used when `migrationFormat` is omitted.
-- **TypeScript** — a single `.ts` file exporting `up` and `down` functions. Set `"migrationFormat": "ts"` on a connection (Bun / source only).
+- **Split SurQL** (default) — `.up.surql` and `.down.surql` files
+- **TypeScript** — a single `.ts` file exporting `up` and `down` functions (Bun / npm package only)
 
-Released binaries are **SurQL-only**. TypeScript migrations require running via Bun from source.
+Format is resolved per connection, then project-level `migrationFormat`, then SurQL. Released binaries are **SurQL-only**.
 
-### Create migrations
+### Create migration
 
-From a connection menu, create a new timestamped migration with a kebab-case name. Files are written into that connection’s folder using the connection’s format.
+From a connection, enter a kebab-case name. Timestamp-prefixed files are written into that connection’s folder using the resolved format.
 
 ### Migrate
 
-Apply all pending migrations for the current connection in one batch. Applied migrations are recorded in the connection’s migration table with a batch number.
+Apply all pending migrations for the current connection as **one batch**. Applied rows are stored in the connection’s migration table with a batch number.
 
 ### Rollback
 
-Roll back either:
+From the connection menu:
 
-- the **latest batch** only, or
-- **all** applied migrations
+- **Latest batch** — roll back only the newest batch
+- **All** — roll back every applied migration
+
+If a migration’s local source files are missing, that id is **skipped** (with a notice). Other migrations in the same operation still roll back. Missing DB records stay applied until you remove them in the migration manager.
 
 ### Migration manager
 
-Browse every local migration with an applied or pending status, then act on one at a time:
+Browse local and applied migrations with status:
 
-- **Pending** — confirm and run that migration alone (out-of-order is allowed)
-- **Applied** — roll back everything after it (“rollback to here”), or roll back only that migration
+| Status             | Meaning                                        |
+| ------------------ | ---------------------------------------------- |
+| **pending**        | Local files exist; not applied in the DB       |
+| **applied**        | Local files exist and the DB record is present |
+| **missing source** | DB record exists; local files are gone         |
+
+**Pending**
+
+- **Run this migration** — apply only that id (out-of-order allowed)
+- **Migrate to here** — apply all pending through that id (inclusive), as one batch
+
+**Applied**
+
+- **Rollback this migration** — down only that id
+- **Roll back to here** — down everything after that id; selected stays applied
+
+**Missing source**
+
+- **Delete migration record** — remove the DB history row only (no down). For stuck DB/codebase mismatches
+
+### Session activity
+
+From the connections list, **Session activity** shows an in-session log. The same summary is printed when you exit if anything was recorded (opens, creates, migrates, rollbacks, failures, and so on).
 
 ### Project layout
 
@@ -96,10 +150,12 @@ surreal/
 
 `surreal.config.json` holds non-secret settings. Connection credentials live only in `.env`.
 
-Omitting `migrationFormat` means SurQL. Set `"migrationFormat": "ts"` on a connection only when using TypeScript migrations. A project-level `migrationFormat` can act as a fallback.
+Omitting `migrationFormat` means SurQL. Set `"migrationFormat": "ts"` on a connection (or at project level as a fallback) when using TypeScript migrations.
 
 For a diagram of the interactive flow, see [docs/flow.md](docs/flow.md).
 
-Compiled binaries for macOS, Linux, and Windows are also available from [GitHub Releases](https://github.com/sneakylenny/surreal-migrator/releases) (SurQL-only). The npm package requires Bun (not Node.js) and includes TypeScript migration support.
+## Releases
 
-Releases are driven by [Changesets](https://github.com/changesets/changesets): add a changeset in your PR (`bun run changeset`), merge the Version Packages PR that CI opens, and npm + binaries publish automatically.
+Compiled binaries for macOS, Linux, and Windows are available from [GitHub Releases](https://github.com/sneakylenny/surreal-migrator/releases) (SurQL-only). The npm package requires Bun and includes TypeScript migration support.
+
+Releases are driven by [Changesets](https://github.com/changesets/changesets): add a changeset in your PR (`bun run changeset`), merge the Version Packages PR that CI opens, and npm + platform binaries publish automatically.

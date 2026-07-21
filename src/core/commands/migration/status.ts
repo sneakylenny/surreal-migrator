@@ -1,48 +1,67 @@
 import { readdir } from "node:fs/promises";
-import type { Config, Connection, MigrationFormat } from "../config.ts";
-import { resolveMigrationFormat } from "../config.ts";
-import { fetchAppliedMigrations } from "../db.ts";
+import type { Config, Connection, MigrationFormat } from "../../config.ts";
+import { resolveMigrationFormat } from "../../config.ts";
+import { fetchAppliedMigrations } from "../../db.ts";
 import {
   getConnectionCredentials,
   type ConnectionCredentials,
-} from "../env.ts";
-import { assertFormatSupported } from "../features.ts";
+} from "../../env.ts";
+import { assertFormatSupported } from "../../flags.ts";
 import { connectionMigrationsDir } from "./create.ts";
 
 export type MigrationStatus = {
   local: string[];
   applied: string[];
   pending: string[];
+  /** Applied in the DB but no matching local migration files. */
+  missing: string[];
   /** Number of migrations in the latest applied batch (for rollback hint). */
   latestBatchCount: number;
   error?: string;
 };
 
+export type MigrationListStatus = "applied" | "pending" | "missing";
+
 export type MigrationListEntry = {
   id: string;
-  status: "applied" | "pending";
+  status: MigrationListStatus;
 };
 
 export function listMigrationsWithStatus(
   status: MigrationStatus,
 ): MigrationListEntry[] {
+  const localSet = new Set(status.local);
   const appliedSet = new Set(status.applied);
-  return status.local.map((id) => ({
-    id,
-    status: appliedSet.has(id) ? "applied" : "pending",
-  }));
+  const ids = [...new Set([...status.local, ...status.applied])].sort();
+  return ids.map((id) => {
+    if (!localSet.has(id) && appliedSet.has(id)) {
+      return { id, status: "missing" as const };
+    }
+    if (appliedSet.has(id)) {
+      return { id, status: "applied" as const };
+    }
+    return { id, status: "pending" as const };
+  });
 }
 
 export function formatManagerHint(status: MigrationStatus): string {
   if (status.error) {
     return "status unavailable";
   }
-  if (status.local.length === 0) {
+  if (
+    status.local.length === 0 &&
+    status.applied.length === 0
+  ) {
     return "no migrations";
   }
-  const applied = status.applied.length;
-  const pending = status.pending.length;
-  return `${applied} applied, ${pending} pending`;
+  const parts = [
+    `${status.applied.length} applied`,
+    `${status.pending.length} pending`,
+  ];
+  if (status.missing.length > 0) {
+    parts.push(`${status.missing.length} missing`);
+  }
+  return parts.join(", ");
 }
 
 /** Extract migration id from a filename based on format. */
@@ -101,6 +120,7 @@ export async function getMigrationStatus(
       local: [],
       applied: [],
       pending: [],
+      missing: [],
       latestBatchCount: 0,
       error: unsupported,
     };
@@ -119,6 +139,7 @@ export async function getMigrationStatus(
       local,
       applied: [],
       pending: local,
+      missing: [],
       latestBatchCount: 0,
       error: "Missing credentials in .env",
     };
@@ -135,6 +156,7 @@ export async function getMigrationStatus(
       local,
       applied: [],
       pending: local,
+      missing: [],
       latestBatchCount: 0,
       error: appliedResult.error,
     };
@@ -142,12 +164,15 @@ export async function getMigrationStatus(
 
   const appliedIds = appliedResult.migrations.map((m) => m.id);
   const appliedSet = new Set(appliedIds);
+  const localSet = new Set(local);
   const pending = local.filter((id) => !appliedSet.has(id));
+  const missing = appliedIds.filter((id) => !localSet.has(id));
 
   return {
     local,
     applied: appliedIds,
     pending,
+    missing,
     latestBatchCount: latestBatchSize(appliedResult.migrations),
   };
 }

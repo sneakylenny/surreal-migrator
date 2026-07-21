@@ -55,27 +55,56 @@ jobs:
         if: steps.changesets.outputs.published == 'true'
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
+  # One job per OS/arch — native runner so OpenTUI's host package matches the binary.
+  # After frozen install, force the exact target native package for that platform.
   build:
     name: Build ${{ matrix.artifact }}
     needs: changesets
     if: needs.changesets.outputs.published == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: bun-darwin-arm64
-            artifact: surreal-migrator-darwin-arm64
-          - target: bun-darwin-x64
-            artifact: surreal-migrator-darwin-x64
-          - target: bun-linux-x64
+          - runner: ubuntu-latest
+            target: bun-linux-x64
             artifact: surreal-migrator-linux-x64
-          - target: bun-linux-arm64
+            opentui_os: linux
+            opentui_cpu: x64
+            libc: glibc
+          - runner: ubuntu-24.04-arm
+            target: bun-linux-arm64
             artifact: surreal-migrator-linux-arm64
-          - target: bun-windows-x64
+            opentui_os: linux
+            opentui_cpu: arm64
+            libc: glibc
+          - runner: macos-14
+            target: bun-darwin-arm64
+            artifact: surreal-migrator-darwin-arm64
+            opentui_os: darwin
+            opentui_cpu: arm64
+            libc: ""
+          - runner: macos-13
+            target: bun-darwin-x64
+            artifact: surreal-migrator-darwin-x64
+            opentui_os: darwin
+            opentui_cpu: x64
+            libc: ""
+          - runner: windows-latest
+            target: bun-windows-x64
             artifact: surreal-migrator-windows-x64.exe
-          - target: bun-windows-arm64
+            opentui_os: win32
+            opentui_cpu: x64
+            libc: ""
+          - runner: windows-11-arm
+            target: bun-windows-arm64
             artifact: surreal-migrator-windows-arm64.exe
+            opentui_os: win32
+            opentui_cpu: arm64
+            libc: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -88,15 +117,26 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Install OpenTUI native package for target
+        run: |
+          OPENTUI_VERSION="$(node -p "require('./node_modules/@opentui/core/package.json').version")"
+          echo "OpenTUI version: ${OPENTUI_VERSION}"
+          bun install --os="${{ matrix.opentui_os }}" --cpu="${{ matrix.opentui_cpu }}" \
+            "@opentui/core@${OPENTUI_VERSION}"
+
       - name: Compile SurQL-only binary
         run: |
           mkdir -p dist
+          DEFINE_ARGS=(--define __SM_TS_MIGRATIONS__=false)
+          if [ -n "${{ matrix.libc }}" ]; then
+            DEFINE_ARGS+=(--define "process.env.OPENTUI_LIBC=\"${{ matrix.libc }}\"")
+          fi
           bun build \
             --compile \
-            --define __SM_TS_MIGRATIONS__=false \
+            "${DEFINE_ARGS[@]}" \
             --target=${{ matrix.target }} \
             ./src/index.ts \
-            --outfile dist/${{ matrix.artifact }}
+            --outfile "dist/${{ matrix.artifact }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7

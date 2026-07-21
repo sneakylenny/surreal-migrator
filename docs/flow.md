@@ -1,52 +1,73 @@
 # Surreal Migrator — interactive flow
 
+Entry: **no args** opens this TUI; **with args** runs direct CLI commands (see [docs/CLI.md](CLI.md)). Session activity and the migration manager exist only in the TUI.
+
 ```mermaid
 flowchart TD
   start[CLI start] --> hasConfig{surreal.config.json exists?}
-  hasConfig -->|no| setup[First-time setup]
-  setup --> pathPrompt["Migrations dir default: surreal"]
-  pathPrompt --> saveConfig["Write config empty connections"]
+  hasConfig -->|no| setup[Bootstrap default config surreal/]
+  setup --> saveConfig["Write config empty connections"]
   hasConfig -->|yes| loadConfig[Load config]
   saveConfig --> connectionsMenu
-  loadConfig --> connectionsMenu[Connections list + Add connection]
-  connectionsMenu -->|select connection| connectionMenu[Pending migrations overview + actions]
-  connectionsMenu -->|add| addConn["Prompt name endpoint creds ns db; format only if TS enabled"]
-  addConn --> verify[Connect with surrealdb SDK]
-  verify -->|ok| ensureTable["DEFINE migration table IF NOT EXISTS"]
-  verify -->|fail| retryOrContinue{Retry or continue?}
+  loadConfig --> connectionsMenu[Connections list]
+
+  connectionsMenu -->|add| addConn["TUI form: name endpoint creds ns db; format if TS enabled"]
+  addConn --> verify[commands/connection/verify]
+  verify -->|ok| askDefault{defaultConnection set?}
+  verify -->|fail| retryOrContinue{Retry Continue Cancel}
   retryOrContinue -->|retry| addConn
-  retryOrContinue -->|continue| skipTable[Skip table create]
-  ensureTable --> saveConn["Save connection + .env username/password"]
-  skipTable --> saveConn
-  saveConn --> hasDefault{defaultConnection set?}
-  hasDefault -->|no| askDefault["Ask set as default?"]
-  askDefault -->|yes| setDefault[Set defaultConnection]
-  askDefault -->|no| connectionsMenu
-  setDefault --> connectionsMenu
-  hasDefault -->|yes| connectionsMenu
-  connectionMenu -->|create migration| createMig[Create migration]
-  createMig --> namePrompt["Prompt kebab-case name"]
-  namePrompt --> writeFiles["Write files under migrationsDir/connection/"]
+  retryOrContinue -->|continue| askDefault
+  retryOrContinue -->|cancel| connectionsMenu
+  askDefault -->|no| makeDefault["Ask set as default?"]
+  makeDefault --> createCmd[commands/connection/create]
+  askDefault -->|yes| createCmd
+  createCmd --> connectionsMenu
+
+  connectionsMenu -->|select connection| connectionMenu[Details + pending overview + actions]
+  connectionsMenu -->|session activity| sessionLog[In-session event summary]
+  sessionLog --> connectionsMenu
+  connectionsMenu -->|quit| exitPrint["Print session summary then exit"]
+
+  connectionMenu -->|create migration| createMig["Overlay: kebab-case name"]
+  createMig --> writeFiles["Write files under migrationsDir/connection/"]
   writeFiles --> connectionMenu
+
   connectionMenu -->|migrate| migrateUp["Apply pending ups as one batch"]
-  connectionMenu -->|rollback| rollbackMenu[Rollback submenu]
-  rollbackMenu -->|batch| rollbackBatch["Down latest batch"]
-  rollbackMenu -->|all| rollbackAll["Down all applied"]
+  connectionMenu -->|rollback| rollbackMenu[Latest batch / All / Back]
+  rollbackMenu -->|batch| rollbackBatch["Down latest batch; skip missing sources"]
+  rollbackMenu -->|all| rollbackAll["Down all applied; skip missing sources"]
   rollbackMenu -->|back| connectionMenu
-  connectionMenu -->|migration manager| managerList["List local migrations with applied/pending"]
-  managerList -->|select pending| confirmRun["Confirm run this migration"]
-  confirmRun -->|yes| migrateOne["Apply single migration"]
-  managerList -->|select applied| appliedMenu["Rollback to here / Rollback this"]
+
+  connectionMenu -->|migration manager| managerList["List: pending / applied / missing source"]
+  managerList -->|select pending| pendingMenu["Run this / Migrate to here / Delete files / Back"]
+  pendingMenu -->|run this| migrateOne["Apply single migration"]
+  pendingMenu -->|migrate to here| migrateThrough["Apply pending through selected inclusive"]
+  pendingMenu -->|delete files| deleteFiles["Delete local up/down or .ts files"]
+  managerList -->|select applied| appliedMenu["Rollback this / Roll back to here / Back"]
+  appliedMenu -->|this| rollbackOne["Down selected only"]
   appliedMenu -->|to here| rollbackAfter["Down migrations after selected"]
-  appliedMenu -->|this| rollbackOne["Down selected migration only"]
+  managerList -->|select missing| missingMenu["Delete record / Back"]
+  missingMenu -->|delete record| deleteRecord["Delete DB row only no down"]
+
+  connectionMenu -->|edit connection| editConn[Edit form: endpoint creds format default]
+  editConn --> connectionMenu
+  connectionMenu -->|back| connectionsMenu
+
   migrateUp --> connectionMenu
   rollbackBatch --> connectionMenu
   rollbackAll --> connectionMenu
   migrateOne --> managerList
+  migrateThrough --> managerList
   rollbackAfter --> managerList
   rollbackOne --> managerList
+  deleteFiles --> managerList
+  deleteRecord --> managerList
   managerList -->|back| connectionMenu
-  connectionMenu -->|make default| setDefaultFromMenu[Set defaultConnection]
-  setDefaultFromMenu --> connectionMenu
-  connectionMenu -->|back| connectionsMenu
 ```
+
+## Notes
+
+- **Paths** in the TUI are breadcrumbs (for example `connections / my-db / manager`), not clickable yet.
+- **Missing source** means a DB migration record exists without local files. Rollbacks that need those files **skip** them and report what was skipped; use **Delete migration record** only for mismatch cleanup.
+- **Delete source files** (pending only) removes local migration files and does not touch the database.
+- **Session activity** is in-memory for the current process and is printed on exit when non-empty.

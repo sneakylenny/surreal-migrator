@@ -10,19 +10,24 @@ A terminal-based CLI for [SurrealDB](https://surrealdb.com) migrations, built on
 
 ## Screenshots
 
-### Connections list
+<table>
+  <tr>
+    <td align="center" valign="top">
+      <strong>Connections list</strong><br />
+      <img src="https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-29-31.png" alt="Connections list" width="280" />
+    </td>
+    <td align="center" valign="top">
+      <strong>Connection detail</strong><br />
+      <img src="https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-32-06.png" alt="Connection detail" width="280" />
+    </td>
+    <td align="center" valign="top">
+      <strong>Migration manager</strong><br />
+      <img src="https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-35-44.png" alt="Migration manager" width="280" />
+    </td>
+  </tr>
+</table>
 
-![Connections list](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-29-31.png)
-
-### Connection detail
-
-![Connection detail](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-32-06.png)
-
-### Migration manager
-
-![Migration manager](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/assets/Screenshot%202026-07-20%20at%2018-35-44.png)
-
-[More...](docs/screenshots.md).
+[More...](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/screenshots.md).
 
 ## Requirements
 

@@ -2,6 +2,10 @@
   "name": "surreal-migrator",
   "version": "0.2.0",
   "description": "Interactive SurrealDB migration CLI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sneakylenny/surreal-migrator.git"
+  },
   "type": "module",
   "bin": {
     "surreal-migrator": "./src/index.ts"

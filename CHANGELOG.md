@@ -1,5 +1,11 @@
 # surreal-migrator
 
+## 0.2.2
+
+### Patch Changes
+
+- fe89753: Fix the release workflow by dropping the retired macOS Intel runner that blocked GitHub Releases, and republish platform binaries.
+
 ## 0.2.1
 
 ### Patch Changes

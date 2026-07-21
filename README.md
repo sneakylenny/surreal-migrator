@@ -65,7 +65,57 @@ When you quit the TUI (or press Ctrl+C), a short **session activity** summary is
 
 ## Direct commands
 
-For scripts and CI, pass a command instead of opening the TUI:
+With no arguments the TUI opens. For scripts and CI, pass a command instead:
+
+```text
+surreal-migrator
+├── (no args)                         Open interactive TUI
+├── -h, --help                        Show help
+├── help [<command>]                  Show help for a command
+├── init                              Create surreal.config.json + surreal/ if missing
+├── status
+│   └── -c, --connection <name>       Target connection (or use defaultConnection)
+├── create <name>                     Create a migration (kebab-case name)
+│   └── -c, --connection <name>
+├── up                                Apply all pending (one batch)
+│   ├── <id>                          Apply only that migration
+│   ├── --through <id>                Apply pending through id (inclusive)
+│   └── -c, --connection <name>
+├── down                              Roll back latest batch
+│   ├── <id>                          Roll back only that migration
+│   ├── --all                         Roll back all applied migrations
+│   ├── --after <id>                  Roll back migrations after id
+│   └── -c, --connection <name>
+├── forget <id>                       Delete DB history row only (no down)
+│   └── -c, --connection <name>
+├── delete-files <id>                 Delete local source files (no DB change)
+│   └── -c, --connection <name>
+└── connection
+    ├── list                          List connections (marks default)
+    ├── add                           Add a connection
+    │   ├── --name <name>             Required
+    │   ├── --endpoint <url>          Required
+    │   ├── --namespace <ns>          Required
+    │   ├── --database <db>           Required
+    │   ├── --username <user>         Required
+    │   ├── --password <pass>         Required
+    │   ├── --table <name>            Migration table (default: migration)
+    │   ├── --format surql|ts         Migration format
+    │   ├── --default                 Set as default connection
+    │   └── --skip-verify             Skip connectivity / table check
+    └── update <name>                 Update a connection (cannot rename)
+        ├── --endpoint <url>
+        ├── --namespace <ns>
+        ├── --database <db>
+        ├── --username <user>
+        ├── --password <pass>
+        ├── --table <name>
+        ├── --format surql|ts
+        ├── --default
+        └── --skip-verify             Omitted fields keep current values
+```
+
+Examples:
 
 ```bash
 surreal-migrator init
@@ -76,9 +126,9 @@ surreal-migrator down --all
 surreal-migrator create add-users
 ```
 
-Use `-c` / `--connection` when no default connection is set. Run `surreal-migrator --help` for a summary.
+Use `-c` / `--connection` when no default connection is set. Modes are mutually exclusive (for example `up <id>` with `--through`, or `down <id>` with `--all`). Exit codes: `0` success / nothing to do; `1` error.
 
-Full CLI reference (flags, targeted up/down, `connection add|update`, exit codes): [docs/CLI.md](docs/CLI.md).
+Full reference with more examples: [docs/CLI.md](docs/CLI.md).
 
 ## Features
 

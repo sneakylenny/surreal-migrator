@@ -1,5 +1,12 @@
 # Surreal Migrator
 
+[![npm version](https://img.shields.io/npm/v/surreal-migrator?style=for-the-badge)](https://www.npmjs.com/package/surreal-migrator)
+[![CI](https://img.shields.io/github/actions/workflow/status/sneakylenny/surreal-migrator/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/sneakylenny/surreal-migrator/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/sneakylenny/surreal-migrator?style=for-the-badge)](./LICENSE.md)
+[![Bun](https://img.shields.io/badge/Bun-000000?style=for-the-badge&logo=bun&logoColor=white)](https://bun.sh)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![SurrealDB](https://img.shields.io/badge/SurrealDB-FF00A0?style=for-the-badge&logo=surrealdb&logoColor=white)](https://surrealdb.com)
+
 **SurrealDB migrator** / **Surreal migration tool** — an interactive CLI for managing SurrealDB schema and data migrations.
 
 A terminal-based CLI for [SurrealDB](https://surrealdb.com) migrations, built on [Bun](https://bun.sh) with [OpenTUI](https://opentui.com/) for the interactive UI and the [SurrealDB JavaScript SDK](https://surrealdb.com/docs/reference/javascript) for database operations.

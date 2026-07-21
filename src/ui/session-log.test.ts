@@ -71,7 +71,7 @@ describe("formatSessionSummary", () => {
       "Session activity (2 events)",
       "",
       "• Opened connection demo",
-      "• Migrated a and b",
+      "• demo: Migrated a and b",
     ]);
   });
 

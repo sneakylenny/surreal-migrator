@@ -34,7 +34,7 @@ A terminal-based CLI for [SurrealDB](https://surrealdb.com) migrations, built on
   </tr>
 </table>
 
-[More...](https://raw.githubusercontent.com/sneakylenny/surreal-migrator/main/docs/screenshots.md).
+[More...](https://github.com/sneakylenny/surreal-migrator/blob/main/docs/screenshots.md).
 
 ## Requirements
 

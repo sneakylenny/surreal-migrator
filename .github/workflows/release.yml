@@ -81,17 +81,11 @@ jobs:
             opentui_os: linux
             opentui_cpu: arm64
             libc: glibc
-          - runner: macos-14
+          - runner: macos-26
             target: bun-darwin-arm64
             artifact: surreal-migrator-darwin-arm64
             opentui_os: darwin
             opentui_cpu: arm64
-            libc: ""
-          - runner: macos-13
-            target: bun-darwin-x64
-            artifact: surreal-migrator-darwin-x64
-            opentui_os: darwin
-            opentui_cpu: x64
             libc: ""
           - runner: windows-latest
             target: bun-windows-x64
